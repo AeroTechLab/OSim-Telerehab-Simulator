@@ -2,10 +2,7 @@ import sys
 import numpy
 
 from lqg_control import GetLQGController 
-from opensim_emg_mlp import OSimEMGMLP
-from opensim_id_mlp import OSimIDMLP
 from kalman_filter import KalmanFilter 
-from identification import LoadSystemParameters
 
 import opensim
 
@@ -46,6 +43,11 @@ outputObserver.SetStatePredictionFactor( 2, 1, -damping / inertia )
 outputObserver.SetInputPredictionFactor( 2, 0, -1 / inertia )
 
 model = opensim.Model( sys.argv[ 1 ] )
+
+model = opensim.Model()
+bodyMaster = model.addBody( 'master', 1.0, opensim.Vec3(), opensim.Vec3() )
+bodySlave = model.addBody( 'slave', 1.0, opensim.Vec3(), opensim.Vec3() )
+
 
 model.setUseVisualizer( True )
 
