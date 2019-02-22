@@ -8,14 +8,17 @@ class PIDController:
   error = [ 0.0, 0.0, 0.0 ]
   output = [ 0.0, 0.0, 0.0 ]
   
-  def PreProcess( self, inputPacket, timeDelay, timeDelta ):
-    setpoint, setpointVelocity = inputPacket
-    self.setpoint = setpoint + ( setpointVelocity + self.setpointVelocity ) * timeDelta / 2
-    self.setpointVelocity = setpointVelocity
+  def __init__( self, timeDelay ):
+    self.dt = timeDelay
     Kp = 10.0; Kd = 1.0; Ki = 0.1
-    self.Kp[ 0 ] = Kp + 2 * Kd / timeDelta + timeDelta * Ki / 2
-    self.Kp[ 1 ] = -4 * Kd / timeDelta + timeDelta * Ki
-    self.Kp[ 2 ] = -Kp + 2 * Kd / timeDelta + timeDelta * Ki / 2
+    self.Kp[ 0 ] = Kp + 2 * Kd / self.dt + self.dt * Ki / 2
+    self.Kp[ 1 ] = -4 * Kd / self.dt + self.dt * Ki
+    self.Kp[ 2 ] = -Kp + 2 * Kd / self.dt + self.dt * Ki / 2
+  
+  def PreProcess( self, inputPacket, timeDelay ):
+    setpoint, setpointVelocity = inputPacket
+    self.setpoint = setpoint + ( setpointVelocity + self.setpointVelocity ) * self.dt / 2
+    self.setpointVelocity = setpointVelocity
 
   def Process( self, inputPosition, inputVelocity, inputForce ):
     self.lastPosition = inputPosition

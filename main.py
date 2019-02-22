@@ -2,11 +2,11 @@
 #import numpy
 import math
 
-#from wave_controller import WaveController as Controller
+from wave_controller import WaveController as Controller
 #from pid_controller import PIDController as Controller
 #from nn_controller import NNController as Controller
 #from lqg_controller import LQGController as Controller
-from  pv_controller import PVController as Controller
+#from  pv_controller import PVController as Controller
 
 import opensim
 
@@ -57,8 +57,8 @@ netDataQueueLength = int( NET_DELAY / NET_TIME_STEP )
 masterToSlaveQueue = [ ( 0.0, 0.0 ) for packet in range( netDataQueueLength ) ]
 slaveToMasterQueue = [ ( 0.0, 0.0 ) for packet in range( netDataQueueLength ) ]
 
-masterController = Controller()
-slaveController = Controller()
+masterController = Controller( NET_TIME_STEP )
+slaveController = Controller( NET_TIME_STEP )
 
 try:
   model = opensim.Model()
@@ -165,13 +165,13 @@ try:
     masterSpeed = masterCoordinate.getSpeedValue( systemState )
     masterInput = CONTROLLER_KP * ( masterSetpoint - masterPosition ) + CONTROLLER_KD * ( masterSpeedSetpoint - masterSpeed )
     masterInputActuator.setOverrideActuation( systemState, masterInput )
-    masterController.PreProcess( slaveToMasterQueue[ dataIndex ], NET_DELAY, NET_TIME_STEP )
+    masterController.PreProcess( slaveToMasterQueue[ dataIndex ], NET_DELAY )
     slaveFeedback = masterController.Process( masterPosition, masterSpeed, masterInput )
     masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedback )
     
     slavePosition = slaveCoordinate.getValue( systemState )
     slaveSpeed = slaveCoordinate.getSpeedValue( systemState )
-    slaveController.PreProcess( masterToSlaveQueue[ dataIndex ], NET_DELAY, NET_TIME_STEP )
+    slaveController.PreProcess( masterToSlaveQueue[ dataIndex ], NET_DELAY )
     masterFeedback = slaveController.Process( slavePosition, slaveSpeed, 0.0 )
     slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedback )
     

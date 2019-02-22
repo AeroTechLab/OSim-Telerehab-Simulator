@@ -6,10 +6,13 @@ class PVController:
   lastPosition = 0.0
   lastVelocity = 0.0
   
-  def PreProcess( self, inputPacket, timeDelay, timeDelta ):
+  def __init__( self, timeDelta ):
+    self.dt = timeDelta
+  
+  def PreProcess( self, inputPacket, timeDelay ):
     setpoint, setpointVelocity = inputPacket
-    self.setpoint = setpoint + ( setpointVelocity + self.setpointVelocity ) * timeDelta / 2
-    self.setpoint += self.setpointVelocity * timeDelay / 2
+    self.setpoint = setpoint + ( setpointVelocity + self.setpointVelocity ) * self.dt / 2
+    self.setpoint += self.setpointVelocity * self.dt / 2
     self.setpointVelocity = setpointVelocity
 
   def Process( self, inputPosition, inputVelocity, inputForce ):
