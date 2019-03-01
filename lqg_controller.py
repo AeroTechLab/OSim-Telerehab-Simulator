@@ -24,7 +24,7 @@ class LQGController:
     self.localObserver.SetInputPredictionFactor( 2, 0, B[ 2 ][ 0 ] )
   
   def PreProcess( self, inputPacket, timeDelay ):
-    self.setpoint, self.setpointVelocity = inputPacket
+    self.setpoint, self.setpointVelocity, dummy = inputPacket
 
   def Process( self, inputPosition, inputVelocity, inputForce ):
     self.reference[ 0 ] = inputPosition - self.setpoint
@@ -34,4 +34,4 @@ class LQGController:
     return self.outputForce
 
   def PostProcess( self ):
-    return ( self.state[ 0 ], self.state[ 1 ] )
+    return ( self.state[ 0 ], self.state[ 1 ], self.state[ 2 ] )

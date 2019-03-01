@@ -10,7 +10,7 @@ class PVController:
     self.dt = timeDelta
   
   def PreProcess( self, inputPacket, timeDelay ):
-    setpoint, setpointVelocity = inputPacket
+    setpoint, setpointVelocity, dummy = inputPacket
     self.setpoint = setpoint + ( setpointVelocity + self.setpointVelocity ) * self.dt / 2
     self.setpoint += self.setpointVelocity * self.dt / 2
     self.setpointVelocity = setpointVelocity
@@ -22,4 +22,4 @@ class PVController:
     return outputForce
 
   def PostProcess( self ):
-    return ( self.lastPosition, self.lastVelocity )
+    return ( self.lastPosition, self.lastVelocity, 0.0 )
