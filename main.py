@@ -6,8 +6,8 @@ import math
 #from lqg_controller import LQGController as Controller
 
 #from pv_controller import PVController as Controller
-#from wave_position_controller import WaveController as Controller
-from lqg_prediction_controller import LQGPredController as Controller
+from wave_position_controller import WaveController as Controller
+#from lqg_prediction_controller import LQGPredController as Controller
 
 import opensim
 
@@ -115,9 +115,9 @@ try:
   slavePositions = [ 0.0 ]
   masterForces = [ 0.0 ]
   slaveForces = [ 0.0 ]
+  masterInputEnergy = [ 0.0 ]
+  slaveInputEnergy = [ 0.0 ]
   inputEnergy = [ 0.0 ]
-  outputEnergy = [ 0.0 ]
-  storedEnergy = [ 0.0 ]
   for timeStepIndex in range( 1, SIM_TIME_STEPS_NUMBER ):
     
     simTime = timeStepIndex * NET_TIME_STEP
@@ -160,25 +160,28 @@ try:
     slavePositions.append( slavePosition )
     masterForces.append( slaveFeedback )
     slaveForces.append( masterFeedback )
-    inputEnergy.append( inputEnergy[ -1 ] + masterInput * masterSpeed * NET_TIME_STEP )
-    outputEnergy.append( outputEnergy[ -1 ] + slaveInput * slaveSpeed * NET_TIME_STEP )
+    masterInputPower = masterInput * masterSpeed
+    masterInputEnergy.append( masterInputEnergy[ -1 ] + masterInputPower * NET_TIME_STEP )
+    slaveInputPower = slaveInput * slaveSpeed
+    slaveInputEnergy.append( slaveInputEnergy[ -1 ] + slaveInputPower * NET_TIME_STEP )
+    inputEnergy.append( inputEnergy[ -1 ] + ( masterInputPower + slaveInputPower ) * NET_TIME_STEP )
 
   #model.setUseVisualizer( False )
   
   print( 'RMS error:', math.sqrt( errorRMS ) )
-  pyplot.subplot( 311, xlim=[ 0.0, 100.0 ], ylim=[ -0.3, 0.3 ], ylabel='Position [m]' )
+  pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.3, 0.3 ], ylabel='Position [m]' )
   pyplot.tick_params( axis='x', labelsize=0 )
   pyplot.plot( ( timeSteps[ 0 ], timeSteps[ -1 ] ), ( 0.0, 0.0 ), 'k--' )
   pyplot.plot( timeSteps, masterPositions, 'b-', timeSteps, slavePositions, 'r-' )
   #pyplot.legend( [ '', 'master', 'slave' ] )
-  pyplot.subplot( 312, xlim=[ 0.0, 100.0 ], ylim=[ -1.5, 1.5 ], ylabel='Force [N]' )
+  pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.5, 1.5 ], ylabel='Force [N]' )
   pyplot.tick_params( axis='x', labelsize=0 )
   pyplot.plot( ( timeSteps[ 0 ], timeSteps[ -1 ] ), ( 0.0, 0.0 ), 'k--' )
   pyplot.plot( timeSteps, masterForces, 'b-', timeSteps, slaveForces, 'r-' )
-  pyplot.subplot( 313, xlim=[ 0.0, 100.0 ], ylim=[ -1.0, 1.0 ], ylabel='Energy [J]' )
+  pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.0, 1.0 ], ylabel='Energy [J]' )
   pyplot.plot( ( timeSteps[ 0 ], timeSteps[ -1 ] ), ( 0.0, 0.0 ), 'k--' )
-  pyplot.plot( timeSteps, inputEnergy, 'g-', timeSteps, outputEnergy, 'm-' )
-  #pyplot.plot( timeSteps, inputEnergy, 'g-' )
+  pyplot.plot( timeSteps, masterInputEnergy, 'g-', timeSteps, slaveInputEnergy, 'm-', timeSteps, inputEnergy, 'y-' )
+  #pyplot.plot( timeSteps, masterInputEnergy, 'g-' )
   pyplot.show()
 except Exception as e:
   print( e )

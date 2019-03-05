@@ -1,7 +1,7 @@
 import math
 
 class WaveController:
-  waveImpedance = 1.0
+  waveImpedance = 5.0
   lastInputWave = 0.0
   lastFilteredWave = 0.0
   lastRemotePosition = 0.0
@@ -9,13 +9,13 @@ class WaveController:
   lastPosition = 0.0
   lastForce = 0.0
   lastMomentum = 0.0
-  bandwidth = 1.0
+  bandwidth = 0.5
   
   def __init__( self, timeDelta ):
     self.dt = timeDelta
   
   def PreProcess( self, inputPacket, timeDelay ):
-    delta = self.dt / timeDelay
+    delta = self.bandwidth
     inputWave, remotePosition, dummy = inputPacket
     self.lastFilteredWave = ( ( 2 - delta ) * self.lastFilteredWave + delta * ( inputWave + self.lastInputWave ) ) / ( 2 + delta )
     self.lastInputWave = inputWave
