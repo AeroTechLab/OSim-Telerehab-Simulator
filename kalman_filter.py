@@ -11,13 +11,18 @@ class KalmanFilter:
     self.predictionCovariance = numpy.eye( statesNumber )
     self.predictionCovarianceNoise = numpy.eye( statesNumber )
     self.errorCovarianceNoise = numpy.eye( measuresNumber )
+    
+    #self.preState = self.state
+    #self.smoothedState = self.state
+    #self.prePredicitonCovariance = self.predictionCovariance
+    #self.smoothedPredicionCovariance = self.predictionCovariance
 
   def SetMeasurement( self, measureIndex, stateIndex, deviation ):
     self.observer[ measureIndex ][ stateIndex ] = 1.0
     self.errorCovarianceNoise[ measureIndex ][ measureIndex ] = deviation**2    
 
-  def SetStatePredictionFactor( self, newStateIndex, oldStateIndex, ratio ):
-    self.statePredictor[ newStateIndex, oldStateIndex ] = ratio
+  def SetStatePredictionFactor( self, newStateIndex, preStateIndex, ratio ):
+    self.statePredictor[ newStateIndex, preStateIndex ] = ratio
     
   def SetInputPredictionFactor( self, newStateIndex, inputIndex, ratio ):
     self.inputPredictor[ newStateIndex, inputIndex ] = ratio
@@ -46,11 +51,23 @@ class KalmanFilter:
     
     self.gain = self.predictionCovariance.dot( self.observer.T ).dot( numpy.linalg.inv( errorCovariance ) )
     
+    #self.preState = self.state.copy()
+    #self.prePredicitonCovariance = self.predictionCovariance.copy()
+    
   def Correct( self ):
     self.state = self.state + self.gain.dot( self.error )
     self.predictionCovariance = self.predictionCovariance - self.gain.dot( self.observer ).dot( self.predictionCovariance )
     
     return numpy.ravel( self.state ).tolist(), numpy.ravel( self.measures ).tolist()
+  
+  #def Smooth( self ):
+    #smootherGain = self.prePredicitonCovariance.dot( self.statePredictor ).dot( numpy.linalg.inv( self.predictionCovariance ) )
+    #self.smoothedState = self.preState + smootherGain.dot( self.smoothedState - self.state )
+    #self.smoothedPredicionCovariance = self.prePredicitonCovariance + smootherGain.dot( self.smoothedPredicionCovariance - self.predictionCovariance ).dot( smootherGain.T )
+    
+    #self.measures = self.observer.dot( self.smoothedState )
+    
+    #return numpy.ravel( self.smoothedState ).tolist(), numpy.ravel( self.measures ).tolist()
   
   def Process( self, measures, inputs=[ 0.0 ] ):
     self.Predict( self.state, inputs )

@@ -25,7 +25,7 @@ class LQGPredController:
     self.remoteObserver = KalmanFilter( 3, 3 )
     self.remoteObserver.SetMeasurement( 0, 0, 1.0 )
     self.remoteObserver.SetMeasurement( 1, 1, 1.0 )
-    self.remoteObserver.SetMeasurement( 1, 1, 1.0 )
+    self.remoteObserver.SetMeasurement( 2, 2, 1.0 )
     self.remoteObserver.SetPredictionNoise( 0, 2.0 )
     self.remoteObserver.SetPredictionNoise( 1, 2.0 )
     self.remoteObserver.SetPredictionNoise( 2, 2.0 )
@@ -45,6 +45,7 @@ class LQGPredController:
         self.remoteObserver.Correct()
     self.predictions.append( ( self.measurement, self.elapsedTime + timeDelay ) )
     self.elapsedTime += self.dt
+    return ( self.measurement[ 0 ], self.measurement[ 1 ], self.measurement[ 2 ] )
 
   def Process( self, inputPosition, inputVelocity, inputForce ):
     reference = [ inputPosition - self.measurement[ 0 ], inputVelocity - self.measurement[ 1 ] ]
