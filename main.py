@@ -23,7 +23,7 @@ SLAVE_KP = 5.0
 SLAVE_KV = 0.5
 
 NET_TIME_STEP = 0.02
-NET_DELAY = 0.2
+NET_DELAY = 0.1
 netDataQueueLength = int( NET_DELAY / NET_TIME_STEP )
 masterToSlaveQueue = [ ( 0.0, 0.0, 0.0 ) for packet in range( netDataQueueLength ) ]
 slaveToMasterQueue = [ ( 0.0, 0.0, 0.0 ) for packet in range( netDataQueueLength ) ]
@@ -113,8 +113,10 @@ try:
   timeSteps = [ 0.0 ]
   masterPositions = [ 0.0 ]
   slavePositions = [ 0.0 ]
-  masterForces = [ 0.0 ]
-  slaveForces = [ 0.0 ]
+  masterInputForces = [ 0.0 ]
+  slaveInputForces = [ 0.0 ]
+  masterFeedbackForces = [ 0.0 ]
+  slaveFeedbackForces = [ 0.0 ]
   masterInputEnergy = [ 0.0 ]
   slaveInputEnergy = [ 0.0 ]
   inputEnergy = [ 0.0 ]
@@ -135,8 +137,8 @@ try:
     masterInput = MASTER_KP * ( setpoint - masterPosition ) + MASTER_KV * ( speedSetpoint - masterSpeed )
     masterInputActuator.setOverrideActuation( systemState, masterInput )
     masterController.PreProcess( slaveToMasterQueue[ dataIndex ], NET_DELAY )
-    slaveFeedback = masterController.Process( masterPosition, masterSpeed, masterInput )
-    masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedback )
+    masterFeedback = masterController.Process( masterPosition, masterSpeed, masterInput )
+    masterFeedbackActuator.setOverrideActuation( systemState, masterFeedback )
     
     slavePosition = slaveCoordinate.getValue( systemState )
     slaveSpeed = slaveCoordinate.getSpeedValue( systemState )
@@ -146,8 +148,8 @@ try:
     #slaveInput = SLAVE_KP * ( setpoint - slavePosition ) + SLAVE_KV * ( speedSetpoint - slaveSpeed )
     slaveInput = SLAVE_KP * ( -setpoint - slavePosition ) + SLAVE_KV * ( -speedSetpoint - slaveSpeed )
     slaveInputActuator.setOverrideActuation( systemState, slaveInput )
-    masterFeedback = slaveController.Process( slavePosition, slaveSpeed, slaveInput )
-    slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedback )
+    slaveFeedback = slaveController.Process( slavePosition, slaveSpeed, slaveInput )
+    slaveFeedbackActuator.setOverrideActuation( systemState, slaveFeedback )
     
     masterToSlaveQueue[ dataIndex ] = masterController.PostProcess()
     slaveToMasterQueue[ dataIndex ] = slaveController.PostProcess()
@@ -158,8 +160,10 @@ try:
     timeSteps.append( simTime )
     masterPositions.append( masterPosition )
     slavePositions.append( slavePosition )
-    masterForces.append( slaveFeedback )
-    slaveForces.append( masterFeedback )
+    masterInputForces.append( masterInput )
+    slaveInputForces.append( slaveInput )
+    masterFeedbackForces.append( masterFeedback )
+    slaveFeedbackForces.append( slaveFeedback )
     masterInputPower = masterInput * masterSpeed
     masterInputEnergy.append( masterInputEnergy[ -1 ] + masterInputPower * NET_TIME_STEP )
     slaveInputPower = slaveInput * slaveSpeed
@@ -169,18 +173,23 @@ try:
   #model.setUseVisualizer( False )
   
   print( 'RMS error:', math.sqrt( errorRMS ) )
-  pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.3, 0.3 ], ylabel='Position [m]' )
+  pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.2, 0.2 ] )
+  pyplot.ylabel( 'Posição [m]', fontsize=15 )
   pyplot.tick_params( axis='x', labelsize=0 )
   pyplot.plot( ( timeSteps[ 0 ], timeSteps[ -1 ] ), ( 0.0, 0.0 ), 'k--' )
   pyplot.plot( timeSteps, masterPositions, 'b-', timeSteps, slavePositions, 'r-' )
   #pyplot.legend( [ '', 'master', 'slave' ] )
-  pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.5, 1.5 ], ylabel='Force [N]' )
+  pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.5, 1.5 ] )
+  pyplot.ylabel( '', fontsize=15 )
   pyplot.tick_params( axis='x', labelsize=0 )
   pyplot.plot( ( timeSteps[ 0 ], timeSteps[ -1 ] ), ( 0.0, 0.0 ), 'k--' )
-  pyplot.plot( timeSteps, masterForces, 'b-', timeSteps, slaveForces, 'r-' )
-  pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.0, 1.0 ], ylabel='Energy [J]' )
+  pyplot.plot( timeSteps, masterInputForces, 'g-', timeSteps, slaveInputForces, 'm-' )
+  pyplot.plot( timeSteps, masterFeedbackForces, 'b-', timeSteps, slaveFeedbackForces, 'r-' )
+  pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.75, 0.75 ] )
+  pyplot.ylabel( 'Velocidade [m/s]', fontsize=15 )
+#  pyplot.xlabel( 'Tempo [s]', fontsize=10 )
   pyplot.plot( ( timeSteps[ 0 ], timeSteps[ -1 ] ), ( 0.0, 0.0 ), 'k--' )
-  pyplot.plot( timeSteps, masterInputEnergy, 'g-', timeSteps, slaveInputEnergy, 'm-', timeSteps, inputEnergy, 'y-' )
+  pyplot.plot( timeSteps, masterInputEnergy, 'b-', timeSteps, slaveInputEnergy, 'r-', timeSteps, inputEnergy, 'g-' )
   #pyplot.plot( timeSteps, masterInputEnergy, 'g-' )
   pyplot.show()
 except Exception as e:
