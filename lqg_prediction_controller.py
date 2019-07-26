@@ -1,4 +1,4 @@
-from lqg_control import GetLQGController 
+from lqr_control import GetLQRController 
 from kalman_filter import KalmanFilter 
 
 class LQGPredController:
@@ -13,7 +13,7 @@ class LQGPredController:
     A = [ [ 1, self.dt, 0.5 * self.dt**2 ], [ 0, 1, self.dt ], [ 0, 0, 0 ] ]
     B = [ [ 0 ], [ 0 ], [ 1 / 1.0 ] ]
     C = [ [ 1, 0, 0 ], [ 0, 1, 0 ], [ 0, 0, 1 ] ]
-    self.feedbackGain = GetLQGController( A, B, C, 0.0001 )
+    self.feedbackGain = GetLQRController( A, B, C, 0.0001 )
     self.localObserver = KalmanFilter( 3, 2 )
     self.localObserver.SetMeasurement( 0, 0, 1.0 )
     self.localObserver.SetMeasurement( 1, 1, 1.0 )

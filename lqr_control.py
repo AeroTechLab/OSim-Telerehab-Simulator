@@ -1,7 +1,7 @@
 import numpy
 from scipy import linalg
 
-def GetLQGController( A, B, C, ro ):
+def GetLQRController( A, B, C, ro ):
   """Solve the discrete time lqr controller.
    
   x[k+1] = A*x[k] + B*u[k]
