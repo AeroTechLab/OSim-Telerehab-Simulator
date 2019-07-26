@@ -2,21 +2,19 @@ from lqr_control import GetLQRController
 from kalman_filter import KalmanFilter 
 
 class LQGPredController:
-  state = [ 0.0, 0.0, 0.0 ]
   measurement = [ 0.0, 0.0, 0.0 ]
-  predictions = []
-  elapsedTime = 0.0
   outputForce = 0.0
   
-  def __init__( self, timeDelta ):
-    self.dt = timeDelta
-    A = [ [ 1, self.dt, 0.5 * self.dt**2 ], [ 0, 1, self.dt ], [ 0, 0, 0 ] ]
-    B = [ [ 0 ], [ 0 ], [ 1 / 1.0 ] ]
+  def __init__( self, inertia, damping, stiffness, timeStep ):
+    self.dt = timeStep
+    A = [ [ 1, self.dt, 0.5 * self.dt**2 ], [ 0, 1, self.dt ], [ -stiffness / inertia, -damping / inertia, 0 ] ]
+    B = [ [ 0 ], [ 0 ], [ 1 / inertia ] ]
     C = [ [ 1, 0, 0 ], [ 0, 1, 0 ], [ 0, 0, 1 ] ]
     self.feedbackGain = GetLQRController( A, B, C, 0.0001 )
-    self.localObserver = KalmanFilter( 3, 2 )
-    self.localObserver.SetMeasurement( 0, 0, 1.0 )
-    self.localObserver.SetMeasurement( 1, 1, 1.0 )
+    self.localObserver = KalmanFilter( 3, 3, 1 )
+    self.localObserver.SetMeasurement( 0, 0, 4.0 )
+    self.localObserver.SetMeasurement( 1, 1, 4.0 )
+    self.localObserver.SetMeasurement( 2, 2, 4.0 )
     self.localObserver.SetStatePredictionFactor( 0, 1, A[ 0 ][ 1 ] )
     self.localObserver.SetStatePredictionFactor( 0, 2, A[ 0 ][ 2 ] )
     self.localObserver.SetStatePredictionFactor( 1, 2, A[ 1 ][ 2 ] )
@@ -26,32 +24,31 @@ class LQGPredController:
     self.remoteObserver.SetMeasurement( 0, 0, 1.0 )
     self.remoteObserver.SetMeasurement( 1, 1, 1.0 )
     self.remoteObserver.SetMeasurement( 2, 2, 1.0 )
-    self.remoteObserver.SetPredictionNoise( 0, 2.0 )
-    self.remoteObserver.SetPredictionNoise( 1, 2.0 )
-    self.remoteObserver.SetPredictionNoise( 2, 2.0 )
+    self.remoteObserver.SetStatePredictionFactor( 0, 1, A[ 0 ][ 1 ] )
+    self.remoteObserver.SetStatePredictionFactor( 0, 2, A[ 0 ][ 2 ] )
+    self.remoteObserver.SetStatePredictionFactor( 1, 2, A[ 1 ][ 2 ] )
+    self.remoteObserver.SetStatePredictionFactor( 2, 2, A[ 2 ][ 2 ] )
+    self.remoteObserver.SetInputPredictionFactor( 2, 0, B[ 2 ][ 0 ] )
+    self.predictor = KalmanFilter( 3, 3 )
+    self.predictor.SetMeasurement( 0, 0, 1.0 )
+    self.predictor.SetMeasurement( 1, 1, 1.0 )
+    self.predictor.SetMeasurement( 2, 2, 1.0 )
   
-  def PreProcess( self, inputPacket, timeDelay ):
-    setpoint, setpointVelocity, setpointAcceleration = inputPacket
-    remoteState = [ setpoint, setpointVelocity, setpointAcceleration ]
+  def PreProcess( self, remotePacket, timeDelay ):
+    remoteMeasurement = [ remotePacket[ 0 ], remotePacket[ 1 ], remotePacket[ 2 ] ]
+    remoteState, self.measurement = self.remoteObserver.Process( remoteMeasurement )
     timeDelay = int( timeDelay / self.dt ) * self.dt
-    self.remoteObserver.SetStatePredictionFactor( 0, 1, timeDelay )
-    self.remoteObserver.SetStatePredictionFactor( 0, 2, 0.5 * timeDelay**2 )
-    self.remoteObserver.SetStatePredictionFactor( 1, 2, timeDelay )
-    remoteState, self.measurement = self.remoteObserver.Predict( remoteState )
-    if len( self.predictions ) > 0:
-      if self.elapsedTime >= self.predictions[ 0 ][ 1 ]:
-        predicition = self.predictions.pop( 0 )[ 0 ]
-        self.remoteObserver.Update( self.measurement, predicition )
-        self.remoteObserver.Correct()
-    self.predictions.append( ( self.measurement, self.elapsedTime + timeDelay ) )
-    self.elapsedTime += self.dt
+    self.predictor.SetStatePredictionFactor( 0, 1, timeDelay )
+    self.predictor.SetStatePredictionFactor( 0, 2, 0.5 * timeDelay**2 )
+    self.predictor.SetStatePredictionFactor( 1, 2, timeDelay )
+    remoteState, self.measurement = self.predictor.Predict( remoteState )
     return ( self.measurement[ 0 ], self.measurement[ 1 ], self.measurement[ 2 ] )
 
-  def Process( self, inputPosition, inputVelocity, inputForce ):
-    reference = [ inputPosition - self.measurement[ 0 ], inputVelocity - self.measurement[ 1 ] ]
-    self.state, measurement = self.localObserver.Process( reference, [ inputForce + self.outputForce ] )
-    self.outputForce = -self.feedbackGain.dot( self.state )[ 0 ]
+  def Process( self, localPacket, inputForce ):
+    remoteState, self.measurement = self.localObserver.Process( self.measurement, [ inputForce ] )
+    referenceState = [ localPacket[ 0 ] - remoteState[ 0 ], localPacket[ 1 ] - remoteState[ 1 ], localPacket[ 2 ] - remoteState[ 2 ] ]
+    self.outputForce = -self.feedbackGain.dot( referenceState )[ 0 ]
     return self.outputForce
 
   def PostProcess( self ):
-    return ( self.state[ 0 ], self.state[ 1 ], self.state[ 2 ] )
+    return ( self.measurement[ 0 ], self.measurement[ 1 ], self.measurement[ 2 ] )

@@ -23,10 +23,13 @@ SLAVE_KP = 5.0
 SLAVE_KV = 0.5
 
 NET_TIME_STEP = 0.02
-NET_DELAY = 0.1
-netDataQueueLength = int( NET_DELAY / NET_TIME_STEP )
-masterToSlaveQueue = [ ( 0.0, 0.0, 0.0 ) for packet in range( netDataQueueLength ) ]
-slaveToMasterQueue = [ ( 0.0, 0.0, 0.0 ) for packet in range( netDataQueueLength ) ]
+NET_DELAY_AVG = 0.2
+NET_DELAY_VAR = 0.1
+
+masterToSlaveQueue = [ ( ( 0.0, 0.0, 0.0 ), 0.0 ) ]
+masterToSlaveTimesQueue = [ 0.0 ]
+slaveToMasterQueue = [ ( ( 0.0, 0.0, 0.0 ), 0.0 ) ]
+slaveToMasterTimesQueue = [ 0.0 ]
 
 masterController = Controller( NET_TIME_STEP )
 slaveController = Controller( NET_TIME_STEP )
@@ -124,7 +127,14 @@ try:
     
     simTime = timeStepIndex * NET_TIME_STEP
     
-    dataIndex = timeStepIndex % netDataQueueLength
+    while simTime >= masterToSlaveTimesQueue[ 0 ]:
+      masterToSlaveTimesQueue.pop( 0 )
+      slaveOutput, slaveInput = masterToSlaveQueue.pop( 0 )
+      if len( masterToSlaveQueue ) == 0: break
+    while simTime >= slaveToMasterTimesQueue[ 0 ]:
+      slaveToMasterTimesQueue.pop( 0 )
+      masterOutput, masterInput = slaveToMasterQueue.pop( 0 )
+      if len( slaveToMasterQueue ) == 0: break
 
     #plant dynamics
     
