@@ -24,4 +24,4 @@ if __name__ == '__main__':
   A = numpy.matrix( [ [ 0, 1 ], [ 0, 0 ] ] )
   B = numpy.matrix( [ [ 0.5 ], [ 0.5 ] ] )
   C = numpy.matrix( [ [ 1, 0 ] ] )
-  controller = GetLQGController( A, B, C )
+  controller = GetLQRController( A, B, C )

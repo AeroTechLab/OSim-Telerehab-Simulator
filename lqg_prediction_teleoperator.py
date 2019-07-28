@@ -1,19 +1,24 @@
 from lqg_controller import LQGController
 from lqg_prediction_controller import LQGPredController
-#from lqg_fusion_controller import LQGPredController
 
 class LQGPredTeleoperator:
   
-  def __init__( self, inertia, damping, stiffness, timeStep ):
-    self.remoteController = LQGController( inertia, damping, stiffness, timeStep )
-    self.localController = LQGPredController( inertia, damping, stiffness, timeStep )
+  def __init__( self, impedance, timeStep ):
+    self.remoteController = LQGController( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ], timeStep )
+    self.localController = LQGPredController( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ], timeStep )
+  
+  def SetRemoteSystem( self, impedance ):
+    self.remoteController.SetSystem( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ] )
+    
+  def SetLocalSystem( self, impedance ):
+    self.localController.SetSystem( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ] )
   
   def Process( self, localState, remoteState, remoteForce, timeDelay ):
     
     feedforwardForce = self.remoteController.Process( localState, remoteState, remoteForce )
       
-    slavePredictedOutput = self.localController.PreProcess( remoteState, timeDelay )
+    remotePredictedState = self.localController.PreProcess( remoteState, timeDelay )
     feedbackForce = self.localController.Process( localState, feedforwardForce + remoteForce )
-    slaveCorrectedOutput = self.localController.PostProcess()
+    remoteCorrectedState = self.localController.PostProcess()
     
-    return ( feedbackForce, slavePredictedOutput, slaveCorrectedOutput )
+    return ( feedbackForce, remotePredictedState, remoteCorrectedState )

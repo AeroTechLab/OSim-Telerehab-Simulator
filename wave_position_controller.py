@@ -1,7 +1,7 @@
 import math
 
 class WaveController:
-  waveImpedance = 5.0
+  waveImpedance = 1.0
   lastInputWave = 0.0
   lastFilteredWave = 0.0
   lastRemotePosition = 0.0
@@ -12,8 +12,11 @@ class WaveController:
   bandwidth = 0.5
   
   def __init__( self, impedance, timeStep ):
-    self.waveImpedance = impedance
+    self.SetImpedance( impedance )
     self.dt = timeStep
+  
+  def SetImpedance( self, impedance ):
+    self.waveImpedance = impedance if impedance > 0.1 else 0.1
   
   def PreProcess( self, remotePacket, timeDelay ):
     delta = self.bandwidth
