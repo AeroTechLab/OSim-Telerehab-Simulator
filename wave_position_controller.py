@@ -11,29 +11,30 @@ class WaveController:
   lastMomentum = 0.0
   bandwidth = 0.5
   
-  def __init__( self, timeDelta ):
-    self.dt = timeDelta
+  def __init__( self, impedance, timeStep ):
+    self.waveImpedance = impedance
+    self.dt = timeStep
   
-  def PreProcess( self, inputPacket, timeDelay ):
+  def PreProcess( self, remotePacket, timeDelay ):
     delta = self.bandwidth
-    inputWave, remotePosition, dummy = inputPacket
+    remotePosition, inputWave, dummy = remotePacket
     self.lastFilteredWave = ( ( 2 - delta ) * self.lastFilteredWave + delta * ( inputWave + self.lastInputWave ) ) / ( 2 + delta )
     self.lastInputWave = inputWave
     self.lastRemotePosition = remotePosition
     self.bandwidth = delta
+    return ( self.lastRemotePosition, self.lastFilteredWave, 0.0 )
 
-  def Process( self, inputPosition, inputVelocity, inputForce ):
-    positionError = inputPosition - self.lastRemotePosition
+  def Process( self, localPacket, inputForce ):
+    positionError = localPacket[ 0 ] - self.lastRemotePosition
     waveCorrection = - math.sqrt( 2.0 * self.waveImpedance ) * self.bandwidth * positionError
     if positionError * self.lastFilteredWave < 0: waveCorrection = 0
     elif abs( waveCorrection ) > abs( self.lastFilteredWave ): waveCorrection = - self.lastFilteredWave
     self.lastFilteredWave += waveCorrection
-    self.lastForce = - ( self.waveImpedance * inputVelocity - math.sqrt( 2.0 * self.waveImpedance ) * self.lastFilteredWave )
-    self.lastVelocity = inputVelocity
-    self.lastPosition = inputPosition
+    self.lastForce = - ( self.waveImpedance * localPacket[ 1 ] - math.sqrt( 2.0 * self.waveImpedance ) * self.lastFilteredWave )
+    self.lastVelocity = localPacket[ 1 ]
+    self.lastPosition = localPacket[ 0 ]
     return self.lastForce
 
   def PostProcess( self ):
     outputWave = ( self.waveImpedance * self.lastVelocity - self.lastForce ) / math.sqrt( 2.0 * self.waveImpedance )  
-    return ( outputWave, self.lastPosition, 0.0 )
-    
+    return ( self.lastRemotePosition, outputWave, 0.0 )

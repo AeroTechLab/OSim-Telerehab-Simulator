@@ -11,8 +11,9 @@ class WaveController:
   lastForce = 0.0
   lastMomentum = 0.0
   
-  def __init__( self, timeDelta ):
-    self.dt = timeDelta
+  def __init__( self, impedance, timeStep ):
+    self.waveImpedance = impedance
+    self.dt = timeStep
   
   def PreProcess( self, inputPacket, timeDelay ):
     delta = self.dt / timeDelay
