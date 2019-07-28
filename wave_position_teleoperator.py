@@ -11,10 +11,10 @@ class WaveTeleoperator:
   def SetLocalSystem( self, impedance ):
     pass
   
-  def Process( self, localState, remoteState, remoteForce, timeDelay ):
+  def Process( self, localState, remoteState, externalForce, timeDelay ):
       
     slavePredictedOutput = self.waveController.PreProcess( remoteState, timeDelay )
-    feedbackForce = self.waveController.Process( localState, remoteForce )
+    feedbackForce = self.waveController.Process( localState )
     slaveCorrectedOutput = self.waveController.PostProcess()
     
     return ( feedbackForce, slavePredictedOutput, slaveCorrectedOutput )

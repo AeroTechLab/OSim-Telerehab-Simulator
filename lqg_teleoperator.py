@@ -11,7 +11,7 @@ class LQGTeleoperator:
   def SetLocalSystem( self, impedance ):
     self.controller.SetSystem( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ] )
   
-  def Process( self, localState, remoteState, remoteForce, timeDelay ):
-    feedbackForce = self.controller.Process( remoteState, localState, remoteForce )
+  def Process( self, localState, remoteState, externalForce, timeDelay ):
+    feedbackForce = self.controller.Process( remoteState, localState, externalForce )
     
     return ( feedbackForce, remoteState, remoteState )

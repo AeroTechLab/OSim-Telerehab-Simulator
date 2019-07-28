@@ -9,7 +9,7 @@ class PVController:
   def __init__( self, timeDelta ):
     self.dt = timeDelta
   
-  def Process( self, setpointState, measureState, inputForce ):
+  def Process( self, setpointState, measureState ):
     setpoint, setpointVelocity, setpointAcceleration = setpointState
     self.setpoint = setpoint + ( setpointVelocity + self.setpointVelocity ) * self.dt / 2
     self.setpoint += self.setpointVelocity * self.dt / 2

@@ -27,7 +27,7 @@ class WaveController:
     self.bandwidth = delta
     return ( self.lastRemotePosition, self.lastFilteredWave, 0.0 )
 
-  def Process( self, localPacket, inputForce ):
+  def Process( self, localPacket ):
     positionError = localPacket[ 0 ] - self.lastRemotePosition
     waveCorrection = - math.sqrt( 2.0 * self.waveImpedance ) * self.bandwidth * positionError
     if positionError * self.lastFilteredWave < 0: waveCorrection = 0

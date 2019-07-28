@@ -20,12 +20,12 @@ MASTER_KV = 1.0
 SLAVE_KP = 5.0
 SLAVE_KV = 0.5
 
-USE_DELAY = False
-USE_DYNAMIC_IMPEDANCE = True#False
+USE_DELAY = True#False
+USE_DYNAMIC_IMPEDANCE = False
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive Spring-Damper", "Assistive", "Resistive Opposite"  ]
-ENVIRONMENT_TYPE = 0
+ENVIRONMENT_TYPE = 3
 CONTROLLER_NAMES = [ "PV", "LQG", "Wave Variables", "LQG Prediction"  ]
-CONTROLLER_TYPE = 2
+CONTROLLER_TYPE = 3
 
 NET_TIME_STEP = 0.02
 NET_DELAY_AVG = 0.2 if USE_DELAY else 0.0
@@ -42,10 +42,10 @@ slaveLinearizer = SystemLinearizer()
 masterTeleoperator = Teleoperator( OPERATOR_IMPEDANCE, NET_TIME_STEP )
 slaveTeleoperator = Teleoperator( OPERATOR_IMPEDANCE, NET_TIME_STEP )
 
-masterToSlaveQueue = [ ( ( 0.0, 0.0, 0.0 ), 0.0, OPERATOR_IMPEDANCE ) ]
+masterToSlaveQueue = [ ( ( 0.0, 0.0, 0.0 ), OPERATOR_IMPEDANCE ) ]
 masterToSlaveTimesQueue = [ 0.0 ]
 masterToSlaveDelays = [ 0.0 ]
-slaveToMasterQueue = [ ( ( 0.0, 0.0, 0.0 ), 0.0, OPERATOR_IMPEDANCE ) ]
+slaveToMasterQueue = [ ( ( 0.0, 0.0, 0.0 ), OPERATOR_IMPEDANCE ) ]
 slaveToMasterTimesQueue = [ 0.0 ]
 slaveToMasterDelays = [ 0.0 ]
 
@@ -164,11 +164,11 @@ try:
     # receive master delayed setpoints
     while simTime >= slaveToMasterTimesQueue[ 0 ]:
       slaveToMasterTimesQueue.pop( 0 )
-      slaveDelayedOutput, slaveDelayedInput, slaveDelayedImpedance = slaveToMasterQueue.pop( 0 )
+      slaveDelayedOutput, slaveDelayedImpedance = slaveToMasterQueue.pop( 0 )
       if len( slaveToMasterQueue ) == 0: break
     # master control
     if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetRemoteSystem( slaveDelayedImpedance )
-    slaveFeedback = masterTeleoperator.Process( masterOutput, slaveDelayedOutput, slaveDelayedInput, slaveToMasterDelays[ -1 ] )
+    slaveFeedback = masterTeleoperator.Process( masterOutput, slaveDelayedOutput, 0.0, slaveToMasterDelays[ -1 ] )
     slaveFeedbackInput, slavePredictedOutput, slaveCorrectedOutput = slaveFeedback
     masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedbackInput )
     # linearize master system
@@ -176,7 +176,7 @@ try:
     masterInputImpedance, masterOutputImpedance = masterLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
     if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetLocalSystem( masterOutputImpedance )
     # send slave delayed setpoints
-    masterToSlaveQueue.append( ( masterOutput, masterInput, masterOutputImpedance ) )
+    masterToSlaveQueue.append( ( masterOutput, masterOutputImpedance ) )
     masterToSlaveDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
     masterToSlaveTimesQueue.append( simTime + masterToSlaveDelays[ -1 ] )
 
@@ -192,11 +192,11 @@ try:
     # receive slave delayed setpoints
     while simTime >= masterToSlaveTimesQueue[ 0 ]:
       masterToSlaveTimesQueue.pop( 0 )
-      masterDelayedOutput, masterDelayedInput, masterDelayedImpedance = masterToSlaveQueue.pop( 0 )
+      masterDelayedOutput, masterDelayedImpedance = masterToSlaveQueue.pop( 0 )
       if len( masterToSlaveQueue ) == 0: break
     # slave control
     if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetRemoteSystem( masterDelayedImpedance )
-    masterFeedback = slaveTeleoperator.Process( slaveOutput, masterDelayedOutput, masterDelayedInput, masterToSlaveDelays[ -1 ] )
+    masterFeedback = slaveTeleoperator.Process( slaveOutput, masterDelayedOutput, 0.0, masterToSlaveDelays[ -1 ] )
     masterFeedbackInput, masterPredictedOutput, masterCorrectedOutput = masterFeedback
     slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedbackInput )
     # linearize slave system
@@ -204,7 +204,7 @@ try:
     slaveInputImpedance, slaveOutputImpedance = slaveLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
     if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetLocalSystem( slaveOutputImpedance )
     # send master delayed setpoints
-    slaveToMasterQueue.append( ( slaveOutput, slaveInput, slaveOutputImpedance ) )
+    slaveToMasterQueue.append( ( slaveOutput, slaveOutputImpedance ) )
     slaveToMasterDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
     slaveToMasterTimesQueue.append( simTime + slaveToMasterDelays[ -1 ] )
     
