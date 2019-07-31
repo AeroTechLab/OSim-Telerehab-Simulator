@@ -1,6 +1,6 @@
 class PVController:
   Kp = 10.0
-  Kv = 1.0
+  Kv = 5.0
   setpoint = 0.0
   setpointVelocity = 0.0
   lastPosition = 0.0

@@ -3,7 +3,7 @@ from scipy.signal import butter, lfilter, freqz
 from matplotlib import pyplot
 
 from simple_plant import SimplePlant
-from teleoperator import Teleoperator
+from lqg_prediction_teleoperator import LQGPredTeleoperator as Teleoperator
 
 SIM_TIME_STEPS_NUMBER = 5000
 
@@ -14,11 +14,9 @@ NET_DELAY_VAR = 0.1
 MASTER_KP = 10.0
 MASTER_KV = 5.0
 
-OPERATOR_INERTIA = 1.0
-OPERATOR_DAMPING = 0.0
-OPERATOR_STIFFNESS = 0.0
-localPlant = SimplePlant( OPERATOR_INERTIA, OPERATOR_DAMPING, OPERATOR_STIFFNESS, NET_TIME_STEP )
-localTeleoperator = Teleoperator( OPERATOR_INERTIA, OPERATOR_DAMPING, OPERATOR_STIFFNESS, NET_TIME_STEP )
+OPERATOR_IMPEDANCE = ( 1.0, 0.0, 0.0 )
+localPlant = SimplePlant( OPERATOR_IMPEDANCE[ 0 ], OPERATOR_IMPEDANCE[ 1 ], OPERATOR_IMPEDANCE[ 2 ], NET_TIME_STEP )
+localTeleoperator = Teleoperator( OPERATOR_IMPEDANCE, NET_TIME_STEP )
 
 random.seed( 0 )
 setpoints = ravel( 2 * ( random.rand( 1, SIM_TIME_STEPS_NUMBER ) - 0.5 ) ).tolist()

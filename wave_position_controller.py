@@ -16,7 +16,7 @@ class WaveController:
     self.dt = timeStep
   
   def SetImpedance( self, impedance ):
-    self.waveImpedance = impedance if impedance > 0.1 else 0.1
+    self.waveImpedance = max( impedance, 1.0 )
   
   def PreProcess( self, remotePacket, timeDelay ):
     delta = self.bandwidth

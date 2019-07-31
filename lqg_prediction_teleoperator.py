@@ -2,23 +2,28 @@ from lqg_controller import LQGController
 from lqg_prediction_controller import LQGPredController
 
 class LQGPredTeleoperator:
-  
+  feedbackForce = 0.0
+ 
   def __init__( self, impedance, timeStep ):
-    self.remoteController = LQGController( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ], timeStep )
     self.localController = LQGPredController( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ], timeStep )
+    self.localImpedance = impedance
   
   def SetRemoteSystem( self, impedance ):
-    self.remoteController.SetSystem( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ] )
+    pass
     
   def SetLocalSystem( self, impedance ):
     self.localController.SetSystem( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ] )
+    self.localImpedance = impedance
   
-  def Process( self, localState, remoteState, externalForce, timeDelay ):
+  def Process( self, localState, remoteState, externalForce, timeDelay ):         
+    remoteCorrectedState = self.localController.Predict( remoteState, timeDelay )
     
-    feedforwardForce = self.remoteController.Process( localState, remoteState, 0.0 )
-      
-    remotePredictedState = self.localController.PreProcess( remoteState, timeDelay )
-    feedbackForce = self.localController.Process( localState, feedforwardForce, externalForce )
-    remoteCorrectedState = self.localController.PostProcess()
+    targetForce = self.localImpedance[ 0 ] * remoteCorrectedState[ 2 ] + self.localImpedance[ 1 ] * remoteCorrectedState[ 1 ] + self.localImpedance[ 2 ] * remoteCorrectedState[ 0 ]
+    reactionForce = targetForce - externalForce
     
-    return ( feedbackForce, remotePredictedState, remoteCorrectedState )
+    controlForce = self.localController.Process( localState, self.feedbackForce )    
+    
+    mixingFactor = 1.0
+    self.feedbackForce = mixingFactor * controlForce + ( 1 - mixingFactor ) * reactionForce
+    
+    return ( self.feedbackForce, remoteCorrectedState )

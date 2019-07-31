@@ -15,4 +15,4 @@ class SimplePlant:
   
   def Process( self, input ):
     self.state = self.statePredictor.dot( self.state ) + self.inputPredictor.dot( [ input ] )
-    return numpy.ravel( self.state ).tolist()
+    return ( self.state[ 0 ], self.state[ 1 ], self.state[ 2 ] )
