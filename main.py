@@ -6,7 +6,7 @@ from pv_teleoperator import PVTeleoperator
 from lqg_teleoperator import LQGTeleoperator
 from wave_position_teleoperator import WaveTeleoperator
 from lqg_prediction_teleoperator import LQGPredTeleoperator
-from impedance_teleoperator import ImpedanceTeleoperator
+#from impedance_teleoperator import ImpedanceTeleoperator
 
 from simple_plant import SimplePlant
 #import opensim
@@ -17,14 +17,14 @@ from matplotlib import pyplot
 
 SIM_TIME_STEPS_NUMBER = 5000
 
-USE_DELAY = False
+USE_DELAY = True#False
 USE_DYNAMIC_IMPEDANCE = True#False
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Assistive"  ]
-ENVIRONMENT_STIFFNESSES = [ 0.0, 5.0, -5.0 ]
-ENVIRONMENT_DAMPINGS = [ 0.0, 2.5, -2.5 ]
+ENVIRONMENT_STIFFNESSES = [ 0.0, 5.0, -1.0 ]
+ENVIRONMENT_DAMPINGS = [ 0.0, 2.5, -0.5 ]
 ENVIRONMENT_TYPE = 1
 CONTROLLER_NAMES = [ "PV", "LQG", "Wave Variables", "LQG Prediction", "Impedance" ]
-CONTROLLER_TYPE = 2
+CONTROLLER_TYPE = 1
 
 MASTER_KP = 10.0
 MASTER_KV = 5.0
@@ -39,7 +39,7 @@ Teleoperator = PVTeleoperator
 if CONTROLLER_TYPE == 1: Teleoperator = LQGTeleoperator
 elif CONTROLLER_TYPE == 2: Teleoperator = WaveTeleoperator
 elif CONTROLLER_TYPE == 3: Teleoperator = LQGPredTeleoperator
-elif CONTROLLER_TYPE == 4: Teleoperator = ImpedanceTeleoperator
+#elif CONTROLLER_TYPE == 4: Teleoperator = ImpedanceTeleoperator
 
 OPERATOR_IMPEDANCE = ( 1.0, 0.0, 0.0 )
 masterLinearizer = SystemLinearizer()
@@ -51,10 +51,10 @@ SLAVE_IMPEDANCE = ( OPERATOR_IMPEDANCE[ 0 ],
                     OPERATOR_IMPEDANCE[ 1 ] + ENVIRONMENT_DAMPINGS[ ENVIRONMENT_TYPE ], 
                     OPERATOR_IMPEDANCE[ 2 ] + ENVIRONMENT_STIFFNESSES[ ENVIRONMENT_TYPE ] )
 
-masterToSlaveQueue = [ ( ( 0.0, 0.0, 0.0 ), OPERATOR_IMPEDANCE ) ]
+masterToSlaveQueue = [ ( ( 0.0, 0.0, 0.0 ), 0.0 ) ]
 masterToSlaveTimesQueue = [ 0.0 ]
 masterToSlaveDelays = [ 0.0 ]
-slaveToMasterQueue = [ ( ( 0.0, 0.0, 0.0 ), OPERATOR_IMPEDANCE ) ]
+slaveToMasterQueue = [ ( ( 0.0, 0.0, 0.0 ), 0.0 ) ]
 slaveToMasterTimesQueue = [ 0.0 ]
 slaveToMasterDelays = [ 0.0 ]
 
@@ -183,20 +183,20 @@ try:
     # receive master delayed setpoints
     while simTime >= slaveToMasterTimesQueue[ 0 ]:
       slaveToMasterTimesQueue.pop( 0 )
-      slaveDelayedOutput, slaveDelayedImpedance = slaveToMasterQueue.pop( 0 )
+      slaveDelayedOutput, slaveDelayedInput = slaveToMasterQueue.pop( 0 )
       if len( slaveToMasterQueue ) == 0: break
     # master control
-    if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetRemoteSystem( slaveDelayedImpedance )
-    slaveFeedback = masterTeleoperator.Process( masterOutput, slaveDelayedOutput, masterInput, slaveToMasterDelays[ -1 ] )
+    #if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetRemoteSystem( slaveDelayedImpedance )
+    slaveFeedback = masterTeleoperator.Process( masterOutput, slaveDelayedOutput, masterInput, slaveDelayedInput, slaveToMasterDelays[ -1 ] )
     slaveFeedbackInput, slaveCorrectedOutput = slaveFeedback
     #masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedbackInput )
     masterOutput = masterPlant.Process( masterInput + slaveFeedbackInput )
     # linearize master system
     masterLinearizer.AddSample( masterOutput[ 0 ], masterOutput[ 1 ], masterOutput[ 2 ], masterInput, slaveFeedbackInput )
-    masterInputImpedance, masterOutputImpedance = masterLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
-    if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetLocalSystem( masterOutputImpedance )
+    masterInputImpedance, masterOutputImpedance, masterPlantImpedance = masterLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
+    if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetLocalSystem( masterPlantImpedance )
     # send slave delayed setpoints
-    masterToSlaveQueue.append( ( masterOutput, masterOutputImpedance ) )
+    masterToSlaveQueue.append( ( masterOutput, masterInput ) )
     masterToSlaveDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
     masterToSlaveTimesQueue.append( simTime + masterToSlaveDelays[ -1 ] )
 
@@ -209,20 +209,20 @@ try:
     # receive slave delayed setpoints
     while simTime >= masterToSlaveTimesQueue[ 0 ]:
       masterToSlaveTimesQueue.pop( 0 )
-      masterDelayedOutput, masterDelayedImpedance = masterToSlaveQueue.pop( 0 )
+      masterDelayedOutput, masterDelayedInput = masterToSlaveQueue.pop( 0 )
       if len( masterToSlaveQueue ) == 0: break
     # slave control
-    if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetRemoteSystem( masterDelayedImpedance )
-    masterFeedback = slaveTeleoperator.Process( slaveOutput, masterDelayedOutput, slaveInput, masterToSlaveDelays[ -1 ] )
+    #if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetRemoteSystem( masterDelayedImpedance )
+    masterFeedback = slaveTeleoperator.Process( slaveOutput, masterDelayedOutput, slaveInput, masterDelayedInput, masterToSlaveDelays[ -1 ] )
     masterFeedbackInput, masterCorrectedOutput = masterFeedback
     #slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedbackInput )
     slaveOutput = slavePlant.Process( slaveInput + masterFeedbackInput )
     # linearize slave system
     slaveLinearizer.AddSample( slaveOutput[ 0 ], slaveOutput[ 1 ], slaveOutput[ 2 ], slaveInput, masterFeedbackInput )
-    slaveInputImpedance, slaveOutputImpedance = slaveLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
-    if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetLocalSystem( slaveOutputImpedance )
+    slaveInputImpedance, slaveOutputImpedance, slavePlantImpedance = slaveLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
+    if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetLocalSystem( slavePlantImpedance )
     # send master delayed setpoints
-    slaveToMasterQueue.append( ( slaveOutput, slaveOutputImpedance ) )
+    slaveToMasterQueue.append( ( slaveOutput, slaveInput ) )
     slaveToMasterDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
     slaveToMasterTimesQueue.append( simTime + slaveToMasterDelays[ -1 ] )
     
@@ -252,11 +252,11 @@ try:
     masterFeedbackInputs.append( masterFeedbackInput )
     slaveFeedbackInputs.append( slaveFeedbackInput )
     masterInputInertias.append( masterInputImpedance[ 0 ] )
-    slaveInertias.append( SLAVE_IMPEDANCE[ 0 ] )
+    slaveInertias.append( slaveOutputImpedance[ 0 ] )
     masterInputDampings.append( masterInputImpedance[ 1 ] )
-    slaveDampings.append( SLAVE_IMPEDANCE[ 1 ] )
+    slaveDampings.append( slaveOutputImpedance[ 1 ] )
     masterInputStiffnesses.append( masterInputImpedance[ 2 ] )
-    slaveStiffnesses.append( SLAVE_IMPEDANCE[ 2 ] )
+    slaveStiffnesses.append( slaveOutputImpedance[ 2 ] )
     masterInputPower = masterInput * masterOutput[ 1 ]
     masterInputEnergy.append( masterInputEnergy[ -1 ] + masterInputPower * NET_TIME_STEP )
     slaveInputPower = slaveInput * slaveOutput[ 1 ]

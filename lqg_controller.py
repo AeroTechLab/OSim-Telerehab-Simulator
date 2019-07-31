@@ -25,8 +25,8 @@ class LQGController:
     self.observer.SetStatePredictionFactor( 2, 1, -damping / inertia )
     self.observer.SetInputPredictionFactor( 2, 0, 1 / inertia )
     
-  def Process( self, setpoint, measurement, inputForce ):
+  def Process( self, setpoint, measurement, externalForce ):
     reference = [ measurement[ 0 ] - setpoint[ 0 ], measurement[ 1 ] - setpoint[ 1 ], measurement[ 2 ] - setpoint[ 2 ] ]
-    state, error = self.observer.Process( reference, [ inputForce ] )
+    state, error = self.observer.Process( reference, [ self.controlForce + externalForce ] )
     self.controlForce = -self.feedbackGain.dot( state )[ 0 ]
     return self.controlForce
