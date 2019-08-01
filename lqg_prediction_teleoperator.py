@@ -6,14 +6,11 @@ class LQGPredTeleoperator:
   def __init__( self, impedance, timeStep ):
     self.localController = LQGPredController( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ], timeStep )
   
-  def SetRemoteSystem( self, impedance ):
-    pass
-    
-  def SetLocalSystem( self, impedance ):
+  def SetSystem( self, impedance ):
     self.localController.SetSystem( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ] )
   
   def Process( self, localState, remoteState, localForce, remoteForce, timeDelay ):         
     remoteCorrectedState, remoteCorrectedForce = self.localController.Predict( remoteState, remoteForce, timeDelay )
-    controlForce = self.localController.Process( localState, remoteCorrectedForce + localForce )    
+    controlForce = self.localController.Process( remoteCorrectedState, localState, localForce )    
     
-    return ( controlForce + remoteCorrectedForce, remoteCorrectedState )
+    return ( controlForce, remoteCorrectedState )

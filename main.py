@@ -6,7 +6,8 @@ from pv_teleoperator import PVTeleoperator
 from lqg_teleoperator import LQGTeleoperator
 from wave_position_teleoperator import WaveTeleoperator
 from lqg_prediction_teleoperator import LQGPredTeleoperator
-#from impedance_teleoperator import ImpedanceTeleoperator
+from lqg_feedback_teleoperator import LQGFFBTeleoperator
+from lqg_feedback_prediction_teleoperator import LQGFFBPredTeleoperator
 
 from simple_plant import SimplePlant
 #import opensim
@@ -15,41 +16,36 @@ from numpy import random, ravel, max, average
 from scipy.signal import butter, lfilter, freqz
 from matplotlib import pyplot
 
-SIM_TIME_STEPS_NUMBER = 5000
+SIM_TIME_STEPS_NUMBER = 1000
 
 USE_DELAY = True#False
 USE_DYNAMIC_IMPEDANCE = True#False
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Assistive"  ]
-ENVIRONMENT_STIFFNESSES = [ 0.0, 5.0, -1.0 ]
-ENVIRONMENT_DAMPINGS = [ 0.0, 2.5, -0.5 ]
-ENVIRONMENT_TYPE = 1
-CONTROLLER_NAMES = [ "PV", "LQG", "Wave Variables", "LQG Prediction", "Impedance" ]
-CONTROLLER_TYPE = 1
+ENVIRONMENT_TYPE = 2
+CONTROLLER_NAMES = [ "PV", "Wave Variables", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
+CONTROLLER_TYPE = 5
 
 MASTER_KP = 10.0
 MASTER_KV = 5.0
-SLAVE_KP = ENVIRONMENT_STIFFNESSES[ ENVIRONMENT_TYPE ]
-SLAVE_KV = ENVIRONMENT_DAMPINGS[ ENVIRONMENT_TYPE ]
+SLAVE_KP = 5.0
+SLAVE_KV = 2.5
 
 NET_TIME_STEP = 0.02
 NET_DELAY_AVG = 0.2 if USE_DELAY else 0.0
 NET_DELAY_VAR = 0.1 if USE_DELAY else 0.0
 
 Teleoperator = PVTeleoperator
-if CONTROLLER_TYPE == 1: Teleoperator = LQGTeleoperator
-elif CONTROLLER_TYPE == 2: Teleoperator = WaveTeleoperator
+if CONTROLLER_TYPE == 1: Teleoperator = WaveTeleoperator
+elif CONTROLLER_TYPE == 2: Teleoperator = LQGTeleoperator
 elif CONTROLLER_TYPE == 3: Teleoperator = LQGPredTeleoperator
-#elif CONTROLLER_TYPE == 4: Teleoperator = ImpedanceTeleoperator
+elif CONTROLLER_TYPE == 4: Teleoperator = LQGFFBTeleoperator
+elif CONTROLLER_TYPE == 5: Teleoperator = LQGFFBPredTeleoperator
 
 OPERATOR_IMPEDANCE = ( 1.0, 0.0, 0.0 )
 masterLinearizer = SystemLinearizer()
 slaveLinearizer = SystemLinearizer()
 masterTeleoperator = Teleoperator( OPERATOR_IMPEDANCE, NET_TIME_STEP )
 slaveTeleoperator = Teleoperator( OPERATOR_IMPEDANCE, NET_TIME_STEP )
-
-SLAVE_IMPEDANCE = ( OPERATOR_IMPEDANCE[ 0 ], 
-                    OPERATOR_IMPEDANCE[ 1 ] + ENVIRONMENT_DAMPINGS[ ENVIRONMENT_TYPE ], 
-                    OPERATOR_IMPEDANCE[ 2 ] + ENVIRONMENT_STIFFNESSES[ ENVIRONMENT_TYPE ] )
 
 masterToSlaveQueue = [ ( ( 0.0, 0.0, 0.0 ), 0.0 ) ]
 masterToSlaveTimesQueue = [ 0.0 ]
@@ -145,7 +141,7 @@ try:
   
   referencePositions = [ 0.0 ]
   positionErrorRMS = 0.0
-  transparencyErrorRMS = 0.0
+  impedanceErrorRMS = 0.0
   timeSteps = [ 0.0 ]
   masterPositions = [ 0.0 ]
   slavePositions = [ 0.0 ]
@@ -186,7 +182,6 @@ try:
       slaveDelayedOutput, slaveDelayedInput = slaveToMasterQueue.pop( 0 )
       if len( slaveToMasterQueue ) == 0: break
     # master control
-    #if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetRemoteSystem( slaveDelayedImpedance )
     slaveFeedback = masterTeleoperator.Process( masterOutput, slaveDelayedOutput, masterInput, slaveDelayedInput, slaveToMasterDelays[ -1 ] )
     slaveFeedbackInput, slaveCorrectedOutput = slaveFeedback
     #masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedbackInput )
@@ -194,7 +189,7 @@ try:
     # linearize master system
     masterLinearizer.AddSample( masterOutput[ 0 ], masterOutput[ 1 ], masterOutput[ 2 ], masterInput, slaveFeedbackInput )
     masterInputImpedance, masterOutputImpedance, masterPlantImpedance = masterLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
-    if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetLocalSystem( masterPlantImpedance )
+    if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetSystem( masterPlantImpedance )
     # send slave delayed setpoints
     masterToSlaveQueue.append( ( masterOutput, masterInput ) )
     masterToSlaveDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
@@ -204,7 +199,9 @@ try:
     #slaveOutput = ( slaveCoordinate.getValue( systemState ),
                     #slaveCoordinate.getSpeedValue( systemState ),
                     #slaveCoordinate.getAccelerationValue( systemState ) )
-    slaveInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
+    slaveInput = 0.0
+    if ENVIRONMENT_TYPE == 1: slaveInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
+    elif ENVIRONMENT_TYPE == 2: slaveInput = SLAVE_KP * ( setpoint - slaveOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - slaveOutput[ 1 ] )
     #slaveInputActuator.setOverrideActuation( systemState, slaveInput )
     # receive slave delayed setpoints
     while simTime >= masterToSlaveTimesQueue[ 0 ]:
@@ -212,7 +209,6 @@ try:
       masterDelayedOutput, masterDelayedInput = masterToSlaveQueue.pop( 0 )
       if len( masterToSlaveQueue ) == 0: break
     # slave control
-    #if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetRemoteSystem( masterDelayedImpedance )
     masterFeedback = slaveTeleoperator.Process( slaveOutput, masterDelayedOutput, slaveInput, masterDelayedInput, masterToSlaveDelays[ -1 ] )
     masterFeedbackInput, masterCorrectedOutput = masterFeedback
     #slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedbackInput )
@@ -220,23 +216,25 @@ try:
     # linearize slave system
     slaveLinearizer.AddSample( slaveOutput[ 0 ], slaveOutput[ 1 ], slaveOutput[ 2 ], slaveInput, masterFeedbackInput )
     slaveInputImpedance, slaveOutputImpedance, slavePlantImpedance = slaveLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
-    if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetLocalSystem( slavePlantImpedance )
+    if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetSystem( slavePlantImpedance )
     # send master delayed setpoints
     slaveToMasterQueue.append( ( slaveOutput, slaveInput ) )
     slaveToMasterDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
     slaveToMasterTimesQueue.append( simTime + slaveToMasterDelays[ -1 ] )
     
     referenceInput = MASTER_KP * ( setpoint - referenceOutput[ 0 ] ) + MASTER_KV * ( speedSetpoint - referenceOutput[ 1 ] )
-    referenceFeedback = - SLAVE_KP * referenceOutput[ 0 ] - SLAVE_KV * referenceOutput[ 1 ]
-    referenceOutput = referencePlant.Process( referenceInput + referenceFeedback )
+    referenceFeedbackInput = 0.0
+    if ENVIRONMENT_TYPE == 1: referenceFeedbackInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
+    elif ENVIRONMENT_TYPE == 2: referenceFeedbackInput = SLAVE_KP * ( setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - referenceOutput[ 1 ] )
+    referenceOutput = referencePlant.Process( referenceInput + referenceFeedbackInput )
     # system update
     #systemState = manager.integrate( simTime )
     
     # perfomance calculation
     positionErrorRMS += ( masterOutput[ 0 ] - slaveOutput[ 0 ] )**2 / SIM_TIME_STEPS_NUMBER
-    transparencyErrorRMS += ( masterInputImpedance[ 0 ] - SLAVE_IMPEDANCE[ 0 ] )**2 / SIM_TIME_STEPS_NUMBER
-    transparencyErrorRMS += ( masterInputImpedance[ 1 ] - SLAVE_IMPEDANCE[ 1 ] )**2 / SIM_TIME_STEPS_NUMBER
-    transparencyErrorRMS += ( masterInputImpedance[ 2 ] - SLAVE_IMPEDANCE[ 2 ] )**2 / SIM_TIME_STEPS_NUMBER
+    impedanceErrorRMS += ( masterInputImpedance[ 0 ] - slaveOutputImpedance[ 0 ] )**2 / SIM_TIME_STEPS_NUMBER
+    impedanceErrorRMS += ( masterInputImpedance[ 1 ] - slaveOutputImpedance[ 1 ] )**2 / SIM_TIME_STEPS_NUMBER
+    impedanceErrorRMS += ( masterInputImpedance[ 2 ] - slaveOutputImpedance[ 2 ] )**2 / SIM_TIME_STEPS_NUMBER
     
     # data logging
     timeSteps.append( simTime )
@@ -266,16 +264,16 @@ try:
   #model.setUseVisualizer( False )
   
   positionErrorRMS = math.sqrt( positionErrorRMS )
-  transparencyErrorRMS = math.sqrt( transparencyErrorRMS )
+  impedanceErrorRMS = math.sqrt( impedanceErrorRMS )
   pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.2, 0.2 ] )
-  pyplot.title( 'Teleoperation w/ {} Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, transparency RMS error={:.3f} )'.format( ENVIRONMENT_NAMES[ ENVIRONMENT_TYPE ], NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ CONTROLLER_TYPE ], positionErrorRMS, transparencyErrorRMS ), fontsize=15 )
+  pyplot.title( 'Teleoperation w/ {} Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error={:.3f} )'.format( ENVIRONMENT_NAMES[ ENVIRONMENT_TYPE ], NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ CONTROLLER_TYPE ], positionErrorRMS, impedanceErrorRMS ), fontsize=15 )
   pyplot.ylabel( 'Position [m]', fontsize=10 )
   pyplot.tick_params( axis='x', labelsize=0 )
   pyplot.plot( timeSteps, referencePositions, 'k:' )
   pyplot.plot( timeSteps, masterDelayedPositions, 'b:', timeSteps, slaveDelayedPositions, 'r:' )
   pyplot.plot( timeSteps, masterSetpointPositions, 'b--', timeSteps, slaveSetpointPositions, 'r--' )
   pyplot.plot( timeSteps, masterPositions, 'b-', timeSteps, slavePositions, 'r-' )
-  pyplot.legend( [ 'reference', 'master-delayed', 'slave-delayed', 'master-predicted', 'slave-predicted', 'master', 'slave' ] )
+  pyplot.legend( [ 'reference', 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
   pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.5, 1.5 ] )
   pyplot.ylabel( 'Force [N]', fontsize=10 )
   pyplot.tick_params( axis='x', labelsize=0 )

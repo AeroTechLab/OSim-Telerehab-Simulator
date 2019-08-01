@@ -3,7 +3,7 @@ import numpy
 
 PARAMETERS_NUMBER = 3
 INPUTS_NUMBER = 3
-SAMPLES_NUMBER = 100
+SAMPLES_NUMBER = 200
 
 class SystemLinearizer:
   samplesCount = 0

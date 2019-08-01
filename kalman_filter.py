@@ -27,16 +27,18 @@ class KalmanFilter:
   def SetPredictionNoise( self, stateIndex, deviation ):
     self.predictionCovarianceNoise[ stateIndex ][ stateIndex ] = deviation**2 
   
-  def Predict( self, state, inputs=[ 0.0 ] ):
-    self.state = self.statePredictor.dot( state ) + self.inputPredictor.dot( inputs )
+  def Predict( self, inputs=[ 0.0 ] ):
+    self.state = self.statePredictor.dot( self.state ) + self.inputPredictor.dot( inputs )
     
     self.predictionCovariance = self.statePredictor.dot( self.predictionCovariance ).dot( self.statePredictor.T )
     self.predictionCovariance = self.predictionCovariance + self.predictionCovarianceNoise
     
-    return numpy.ravel( self.state ).tolist()
+    estimatedMeasures = self.observer.dot( self.state )
+    
+    return numpy.ravel( self.state ).tolist(), numpy.ravel( estimatedMeasures ).tolist()
   
-  def Update( self, measures ):
-    self.error = numpy.array( measures ) - self.observer.dot( self.state )
+  def Update( self, measures, estimatedMeasures ):
+    self.error = numpy.array( measures ) - estimatedMeasures
     
     errorCovariance = self.observer.dot( self.predictionCovariance ).dot( self.observer.T )
     errorCovariance = errorCovariance + self.errorCovarianceNoise
@@ -46,15 +48,10 @@ class KalmanFilter:
     self.state = self.state + self.gain.dot( self.error )
     self.predictionCovariance = self.predictionCovariance - self.gain.dot( self.observer ).dot( self.predictionCovariance )
     
-    return numpy.ravel( self.state ).tolist()
+    estimatedMeasures = self.observer.dot( self.state )
     
-  def Observe( self, state ):
-    estimatedMeasures = self.observer.dot( state )
-    
-    return numpy.ravel( estimatedMeasures ).tolist()
+    return numpy.ravel( self.state ).tolist(), numpy.ravel( estimatedMeasures ).tolist()
   
   def Process( self, measures, inputs=[ 0.0 ] ):
-    self.Predict( self.state, inputs )
-    estimatedState = self.Update( measures )
-    estimatedMeasures = self.Observe( self.state )
-    return ( estimatedState, estimatedMeasures )
+    estimatedState, estimatedMeasures = self.Predict( inputs )
+    return self.Update( measures, estimatedMeasures )

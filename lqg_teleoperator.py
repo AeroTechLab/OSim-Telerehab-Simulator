@@ -5,13 +5,10 @@ class LQGTeleoperator:
   def __init__( self, impedance, timeStep ):
     self.controller = LQGController( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ], timeStep )
   
-  def SetRemoteSystem( self, impedance ):
-    pass
-    
-  def SetLocalSystem( self, impedance ):
+  def SetSystem( self, impedance ):
     self.controller.SetSystem( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ] )
   
   def Process( self, localState, remoteState, localForce, remoteForce, timeDelay ):
-    controlForce = self.controller.Process( remoteState, localState, remoteForce + localForce )
+    controlForce = self.controller.Process( remoteState, localState, localForce )
     
-    return ( controlForce + remoteForce, remoteState )
+    return ( controlForce, remoteState )
