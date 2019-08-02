@@ -9,27 +9,27 @@ from lqg_prediction_teleoperator import LQGPredTeleoperator
 from lqg_feedback_teleoperator import LQGFFBTeleoperator
 from lqg_feedback_prediction_teleoperator import LQGFFBPredTeleoperator
 
-#from simple_plant import SimplePlant
+from simple_plant import SimplePlant
 import opensim
 
 from numpy import random, ravel, max, average
 from scipy.signal import butter, lfilter, freqz
 from matplotlib import pyplot
 
-SIM_TIME_STEPS_NUMBER = 5000
+SIM_TIME_STEPS_NUMBER = 2000
 
 USE_DELAY = True#False
 USE_VARIABLE_DELAY = True#False
 USE_DYNAMIC_IMPEDANCE = True#False
-ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Assistive"  ]
+ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Assistive", "Competitive"  ]
 ENVIRONMENT_TYPE = 1
 CONTROLLER_NAMES = [ "PV", "Wave Variables", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
 CONTROLLER_TYPE = 5
 
 MASTER_KP = 10.0
-MASTER_KV = 5.0
+MASTER_KV = 4.0
 SLAVE_KP = 5.0
-SLAVE_KV = 2.5
+SLAVE_KV = 2.0
 
 NET_TIME_STEP = 0.02
 NET_DELAY_AVG = 0.2 if USE_DELAY else 0.0
@@ -126,10 +126,10 @@ try:
   systemState.setTime( 0 )
   manager.initialize( systemState )
   
-  #referencePlant = SimplePlant( OPERATOR_IMPEDANCE[ 0 ], OPERATOR_IMPEDANCE[ 1 ], OPERATOR_IMPEDANCE[ 2 ], NET_TIME_STEP )
+  referencePlant = SimplePlant( OPERATOR_IMPEDANCE[ 0 ], OPERATOR_IMPEDANCE[ 1 ], OPERATOR_IMPEDANCE[ 2 ], NET_TIME_STEP )
   #masterPlant = SimplePlant( OPERATOR_IMPEDANCE[ 0 ], OPERATOR_IMPEDANCE[ 1 ], OPERATOR_IMPEDANCE[ 2 ], NET_TIME_STEP )
   #slavePlant = SimplePlant( OPERATOR_IMPEDANCE[ 0 ], OPERATOR_IMPEDANCE[ 1 ], OPERATOR_IMPEDANCE[ 2 ], NET_TIME_STEP )
-  #referenceOutput = ( 0.0, 0.0, 0.0 )
+  referenceOutput = ( 0.0, 0.0, 0.0 )
   #masterOutput = ( 0.0, 0.0, 0.0 )
   #slaveOutput = ( 0.0, 0.0, 0.0 )
   
@@ -142,7 +142,9 @@ try:
   
   referencePositions = [ 0.0 ]
   positionErrorRMS = 0.0
-  impedanceErrorRMS = 0.0
+  inertiaErrorRMS = 0.0
+  dampingErrorRMS = 0.0
+  stiffnessErrorRMS = 0.0
   timeSteps = [ 0.0 ]
   masterPositions = [ 0.0 ]
   slavePositions = [ 0.0 ]
@@ -169,7 +171,7 @@ try:
     
     # general setpoints
     setpoint = setpoints[ timeStepIndex ]
-    speedSetpoint = ( setpoints[ timeStepIndex ] - setpoints[ timeStepIndex - 1 ] ) / NET_TIME_STEP
+    speedSetpoint = 0#( setpoints[ timeStepIndex ] - setpoints[ timeStepIndex - 1 ] ) / NET_TIME_STEP
     
     # master dynamics
     masterOutput = ( masterCoordinate.getValue( systemState ),
@@ -203,6 +205,7 @@ try:
     slaveInput = 0.0
     if ENVIRONMENT_TYPE == 1: slaveInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
     elif ENVIRONMENT_TYPE == 2: slaveInput = SLAVE_KP * ( setpoint - slaveOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - slaveOutput[ 1 ] )
+    elif ENVIRONMENT_TYPE == 3: slaveInput = SLAVE_KP * ( -setpoint - slaveOutput[ 0 ] ) + SLAVE_KV * ( -speedSetpoint - slaveOutput[ 1 ] )
     slaveInputActuator.setOverrideActuation( systemState, slaveInput )
     # receive slave delayed setpoints
     while simTime >= masterToSlaveTimesQueue[ 0 ]:
@@ -223,24 +226,25 @@ try:
     slaveToMasterDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
     slaveToMasterTimesQueue.append( simTime + slaveToMasterDelays[ -1 ] )
     
-    #referenceInput = MASTER_KP * ( setpoint - referenceOutput[ 0 ] ) + MASTER_KV * ( speedSetpoint - referenceOutput[ 1 ] )
-    #referenceFeedbackInput = 0.0
-    #if ENVIRONMENT_TYPE == 1: referenceFeedbackInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
-    #elif ENVIRONMENT_TYPE == 2: referenceFeedbackInput = SLAVE_KP * ( setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - referenceOutput[ 1 ] )
-    #referenceOutput = referencePlant.Process( referenceInput + referenceFeedbackInput )
+    referenceInput = MASTER_KP * ( setpoint - referenceOutput[ 0 ] ) + MASTER_KV * ( speedSetpoint - referenceOutput[ 1 ] )
+    referenceFeedbackInput = 0.0
+    if ENVIRONMENT_TYPE == 1: referenceFeedbackInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
+    elif ENVIRONMENT_TYPE == 2: referenceFeedbackInput = SLAVE_KP * ( setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - referenceOutput[ 1 ] )
+    elif ENVIRONMENT_TYPE == 3: referenceFeedbackInput = SLAVE_KP * ( -setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( -speedSetpoint - referenceOutput[ 1 ] )
+    referenceOutput = referencePlant.Process( referenceInput + referenceFeedbackInput )
     
     # system update
     systemState = manager.integrate( simTime )
     
     # perfomance calculation
     positionErrorRMS += ( masterOutput[ 0 ] - slaveOutput[ 0 ] )**2 / SIM_TIME_STEPS_NUMBER
-    impedanceErrorRMS += ( masterInputImpedance[ 0 ] - slaveOutputImpedance[ 0 ] )**2 / SIM_TIME_STEPS_NUMBER
-    impedanceErrorRMS += ( masterInputImpedance[ 1 ] - slaveOutputImpedance[ 1 ] )**2 / SIM_TIME_STEPS_NUMBER
-    impedanceErrorRMS += ( masterInputImpedance[ 2 ] - slaveOutputImpedance[ 2 ] )**2 / SIM_TIME_STEPS_NUMBER
+    inertiaErrorRMS += ( masterInputImpedance[ 0 ] - slaveOutputImpedance[ 0 ] )**2 / SIM_TIME_STEPS_NUMBER
+    dampingErrorRMS += ( masterInputImpedance[ 1 ] - slaveOutputImpedance[ 1 ] )**2 / SIM_TIME_STEPS_NUMBER
+    stiffnessErrorRMS += ( masterInputImpedance[ 2 ] - slaveOutputImpedance[ 2 ] )**2 / SIM_TIME_STEPS_NUMBER
     
     # data logging
     timeSteps.append( simTime )
-    #referencePositions.append( referenceOutput[ 0 ] )
+    referencePositions.append( referenceOutput[ 0 ] )
     masterPositions.append( masterOutput[ 0 ] )
     slavePositions.append( slaveOutput[ 0 ] )
     masterDelayedPositions.append( masterDelayedOutput[ 0 ] )
@@ -266,28 +270,32 @@ try:
   #model.setUseVisualizer( False )
   
   positionErrorRMS = math.sqrt( positionErrorRMS )
-  impedanceErrorRMS = math.sqrt( impedanceErrorRMS )
+  inertiaErrorRMS = math.sqrt( inertiaErrorRMS )
+  dampingErrorRMS = math.sqrt( dampingErrorRMS )
+  stiffnessErrorRMS = math.sqrt( stiffnessErrorRMS )
   pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.2, 0.2 ] )
-  pyplot.title( 'Teleoperation w/ {} Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error={:.3f} )'.format( ENVIRONMENT_NAMES[ ENVIRONMENT_TYPE ], NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ CONTROLLER_TYPE ], positionErrorRMS, impedanceErrorRMS ), fontsize=15 )
+  pyplot.title( 'Teleoperation w/ {} Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error=({:.3f},{:.3f},{:.3f}) )\n'.format( 
+                ENVIRONMENT_NAMES[ ENVIRONMENT_TYPE ], NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ CONTROLLER_TYPE ], positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS ), fontsize=15 )
   pyplot.ylabel( 'Position [m]', fontsize=10 )
   pyplot.tick_params( axis='x', labelsize=0 )
-  #pyplot.plot( timeSteps, referencePositions, 'k:' )
-  pyplot.plot( timeSteps, masterDelayedPositions, 'b:', timeSteps, slaveDelayedPositions, 'r:' )
-  pyplot.plot( timeSteps, masterSetpointPositions, 'b--', timeSteps, slaveSetpointPositions, 'r--' )
+  pyplot.plot( timeSteps, referencePositions, 'k:' )
+  #pyplot.plot( timeSteps, masterDelayedPositions, 'b:', timeSteps, slaveDelayedPositions, 'r:' )
+  #pyplot.plot( timeSteps, masterSetpointPositions, 'b--', timeSteps, slaveSetpointPositions, 'r--' )
   pyplot.plot( timeSteps, masterPositions, 'b-', timeSteps, slavePositions, 'r-' )
   #pyplot.legend( [ 'reference', 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
   pyplot.legend( [ 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
-  pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.5, 1.5 ] )
-  pyplot.ylabel( 'Force [N]', fontsize=10 )
-  pyplot.tick_params( axis='x', labelsize=0 )
-  pyplot.plot( timeSteps, masterInputs, 'g-', timeSteps, slaveInputs, 'm-' )
-  pyplot.plot( timeSteps, masterFeedbackInputs, 'b-', timeSteps, slaveFeedbackInputs, 'r-' )
-  pyplot.legend( [ 'master-input', 'slave-input', 'master-feedback', 'slave-feedback' ] )
+  #pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.5, 1.5 ] )
+  pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.5, 0.5 ] )
+  #pyplot.ylabel( 'Force [N]', fontsize=10 )
+  #pyplot.tick_params( axis='x', labelsize=0 )
+  #pyplot.plot( timeSteps, masterInputs, 'g-', timeSteps, slaveInputs, 'm-' )
+  #pyplot.plot( timeSteps, masterFeedbackInputs, 'b-', timeSteps, slaveFeedbackInputs, 'r-' )
+  #pyplot.legend( [ 'master-input', 'slave-input', 'master-feedback', 'slave-feedback' ] )
   #pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.75, 0.75 ] )
-  #pyplot.ylabel( 'Energy [J]', fontsize=10 )
+  pyplot.ylabel( 'Energy [J]', fontsize=10 )
   #pyplot.xlabel( 'Time [s]', fontsize=10 )
-  #pyplot.plot( timeSteps, masterInputEnergy, 'b-', timeSteps, slaveInputEnergy, 'r-', timeSteps, inputEnergy, 'g-' )
-  #pyplot.legend( [ 'master-input', 'slave-input', 'net-input' ] )
+  pyplot.plot( timeSteps, masterInputEnergy, 'b-', timeSteps, slaveInputEnergy, 'r-', timeSteps, inputEnergy, 'g-' )
+  pyplot.legend( [ 'master-input', 'slave-input', 'net-input' ] )
   pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -2.5, 7.5 ] )
   pyplot.ylabel( 'Impedance', fontsize=10 )
   pyplot.xlabel( 'Time [s]', fontsize=10 )
