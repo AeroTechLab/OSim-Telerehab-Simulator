@@ -6,10 +6,6 @@ class LQGController:
   
   def __init__( self, inertia, damping, stiffness, timeStep ):
     self.dt = timeStep
-    A = [ [ 1, self.dt, 0.5 * self.dt**2 ], [ 0, 1, self.dt ], [ -stiffness / inertia, -damping / inertia, 0 ] ]
-    B = [ [ 0 ], [ 0 ], [ 1 / inertia ] ]
-    C = [ [ 1, 0, 0 ], [ 0, 1, 0 ], [ 0, 0, 1 ] ]
-    self.feedbackGain = GetLQRController( A, B, C, 0.0001 )
     self.observer = KalmanFilter( 3, 3, 1 )
     self.observer.SetMeasurement( 0, 0, 1.0 )
     self.observer.SetMeasurement( 1, 1, 1.0 )
@@ -21,6 +17,10 @@ class LQGController:
     self.SetSystem( inertia, damping, stiffness )
     
   def SetSystem( self, inertia, damping, stiffness ):
+    A = [ [ 1, self.dt, 0.5 * self.dt**2 ], [ 0, 1, self.dt ], [ -stiffness / inertia, -damping / inertia, 0 ] ]
+    B = [ [ 0 ], [ 0 ], [ 1 / inertia ] ]
+    C = [ [ 1, 0, 0 ], [ 0, 1, 0 ], [ 0, 0, 1 ] ]
+    self.feedbackGain = GetLQRController( A, B, C, 0.0001 )
     self.observer.SetStatePredictionFactor( 2, 0, -stiffness / inertia )
     self.observer.SetStatePredictionFactor( 2, 1, -damping / inertia )
     self.observer.SetInputPredictionFactor( 2, 0, 1 / inertia )

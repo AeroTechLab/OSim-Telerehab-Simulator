@@ -22,7 +22,7 @@ USE_DELAY = True#False
 USE_VARIABLE_DELAY = True#False
 USE_DYNAMIC_IMPEDANCE = True#False
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Assistive", "Competitive"  ]
-ENVIRONMENT_TYPE = 1
+ENVIRONMENT_TYPE = 2
 CONTROLLER_NAMES = [ "PV", "Wave Variables", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
 CONTROLLER_TYPE = 5
 
@@ -273,6 +273,7 @@ try:
   inertiaErrorRMS = math.sqrt( inertiaErrorRMS )
   dampingErrorRMS = math.sqrt( dampingErrorRMS )
   stiffnessErrorRMS = math.sqrt( stiffnessErrorRMS )
+  print( "{:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format( positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS, inputEnergy[ -1 ] ) )
   pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.2, 0.2 ] )
   pyplot.title( 'Teleoperation w/ {} Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error=({:.3f},{:.3f},{:.3f}) )\n'.format( 
                 ENVIRONMENT_NAMES[ ENVIRONMENT_TYPE ], NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ CONTROLLER_TYPE ], positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS ), fontsize=15 )
