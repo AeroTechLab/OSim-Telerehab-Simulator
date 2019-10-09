@@ -13,4 +13,4 @@ class LQGPredTeleoperator:
     remoteCorrectedState, remoteCorrectedForce = self.localController.Predict( remoteState, remoteForce, timeDelay )
     controlForce = self.localController.Process( remoteCorrectedState, localState, localForce )    
     
-    return ( controlForce, remoteCorrectedState )
+    return ( controlForce, remoteCorrectedState, localState )

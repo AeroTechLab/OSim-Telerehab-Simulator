@@ -18,13 +18,13 @@ from matplotlib import pyplot
 
 SIM_TIME_STEPS_NUMBER = 2000
 
-USE_DELAY = True#False
+USE_DELAY = False#True#False
 USE_VARIABLE_DELAY = True#False
 USE_DYNAMIC_IMPEDANCE = True#False
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Assistive", "Competitive"  ]
 ENVIRONMENT_TYPE = 2
 CONTROLLER_NAMES = [ "PV", "Wave Variables", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
-CONTROLLER_TYPE = 5
+CONTROLLER_TYPE = 1
 
 MASTER_KP = 10.0
 MASTER_KV = 4.0
@@ -184,17 +184,17 @@ try:
       slaveToMasterTimesQueue.pop( 0 )
       slaveDelayedOutput, slaveDelayedInput = slaveToMasterQueue.pop( 0 )
       if len( slaveToMasterQueue ) == 0: break
-    # master control
-    slaveFeedback = masterTeleoperator.Process( masterOutput, slaveDelayedOutput, masterInput, slaveDelayedInput, slaveToMasterDelays[ -1 ] )
-    slaveFeedbackInput, slaveCorrectedOutput = slaveFeedback
-    masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedbackInput )
-    #masterOutput = masterPlant.Process( masterInput + slaveFeedbackInput )
     # linearize master system
-    masterLinearizer.AddSample( masterOutput[ 0 ], masterOutput[ 1 ], masterOutput[ 2 ], masterInput, slaveFeedbackInput )
+    masterLinearizer.AddSample( masterOutput[ 0 ], masterOutput[ 1 ], masterOutput[ 2 ], masterInput, slaveFeedbackInputs[ -1 ] )
     masterInputImpedance, masterOutputImpedance, masterPlantImpedance = masterLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
     if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetSystem( masterPlantImpedance )
+    # master control
+    controlOutput = masterTeleoperator.Process( masterOutput, slaveDelayedOutput, masterInput, slaveDelayedInput, slaveToMasterDelays[ -1 ] )
+    slaveFeedbackInput, slaveCorrectedOutput, masterState = controlOutput
+    masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedbackInput )
+    #masterOutput = masterPlant.Process( masterInput + slaveFeedbackInput )
     # send slave delayed setpoints
-    masterToSlaveQueue.append( ( masterOutput, masterInput ) )
+    masterToSlaveQueue.append( ( masterState, masterInput ) )
     masterToSlaveDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
     masterToSlaveTimesQueue.append( simTime + masterToSlaveDelays[ -1 ] )
 
@@ -212,17 +212,17 @@ try:
       masterToSlaveTimesQueue.pop( 0 )
       masterDelayedOutput, masterDelayedInput = masterToSlaveQueue.pop( 0 )
       if len( masterToSlaveQueue ) == 0: break
-    # slave control
-    masterFeedback = slaveTeleoperator.Process( slaveOutput, masterDelayedOutput, slaveInput, masterDelayedInput, masterToSlaveDelays[ -1 ] )
-    masterFeedbackInput, masterCorrectedOutput = masterFeedback
-    slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedbackInput )
-    #slaveOutput = slavePlant.Process( slaveInput + masterFeedbackInput )
     # linearize slave system
-    slaveLinearizer.AddSample( slaveOutput[ 0 ], slaveOutput[ 1 ], slaveOutput[ 2 ], slaveInput, masterFeedbackInput )
+    slaveLinearizer.AddSample( slaveOutput[ 0 ], slaveOutput[ 1 ], slaveOutput[ 2 ], slaveInput, masterFeedbackInputs[ -1 ] )
     slaveInputImpedance, slaveOutputImpedance, slavePlantImpedance = slaveLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
     if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetSystem( slavePlantImpedance )
+    # slave control
+    controlOutput = slaveTeleoperator.Process( slaveOutput, masterDelayedOutput, slaveInput, masterDelayedInput, masterToSlaveDelays[ -1 ] )
+    masterFeedbackInput, masterCorrectedOutput, slaveState = controlOutput
+    slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedbackInput )
+    #slaveOutput = slavePlant.Process( slaveInput + masterFeedbackInput )
     # send master delayed setpoints
-    slaveToMasterQueue.append( ( slaveOutput, slaveInput ) )
+    slaveToMasterQueue.append( ( slaveState, slaveInput ) )
     slaveToMasterDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
     slaveToMasterTimesQueue.append( simTime + slaveToMasterDelays[ -1 ] )
     

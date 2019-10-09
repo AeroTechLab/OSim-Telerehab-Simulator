@@ -16,7 +16,7 @@ class WaveController:
     self.dt = timeStep
   
   def SetImpedance( self, impedance ):
-    self.waveImpedance = max( impedance, 5.0 )
+    self.waveImpedance = max( impedance, 1.0 )
   
   def PreProcess( self, remotePacket, timeDelay ):
     delta = self.bandwidth
@@ -29,15 +29,16 @@ class WaveController:
 
   def Process( self, localPacket ):
     positionError = localPacket[ 0 ] - self.lastRemotePosition
-    waveCorrection = - math.sqrt( 2.0 * self.waveImpedance ) * self.bandwidth * positionError
+    waveCorrection = -math.sqrt( 2.0 * self.waveImpedance ) * self.bandwidth * positionError
     if positionError * self.lastFilteredWave < 0: waveCorrection = 0
-    elif abs( waveCorrection ) > abs( self.lastFilteredWave ): waveCorrection = - self.lastFilteredWave
+    elif abs( waveCorrection ) > abs( self.lastFilteredWave ): waveCorrection = -self.lastFilteredWave
     self.lastFilteredWave += waveCorrection
-    self.lastForce = - ( self.waveImpedance * localPacket[ 1 ] - math.sqrt( 2.0 * self.waveImpedance ) * self.lastFilteredWave )
+    self.lastForce = -( self.waveImpedance * localPacket[ 1 ] - math.sqrt( 2.0 * self.waveImpedance ) * self.lastFilteredWave )
     self.lastVelocity = localPacket[ 1 ]
     self.lastPosition = localPacket[ 0 ]
     return self.lastForce
 
-  def PostProcess( self ):
+  def PostProcess( self, localForce ):
     outputWave = ( self.waveImpedance * self.lastVelocity - self.lastForce ) / math.sqrt( 2.0 * self.waveImpedance )  
-    return ( self.lastRemotePosition, outputWave, 0.0 )
+    #outputWave = ( self.waveImpedance * self.lastVelocity + localForce ) / math.sqrt( 2.0 * self.waveImpedance )  
+    return ( self.lastRemotePosition, outputWave )

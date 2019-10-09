@@ -21,7 +21,8 @@ def GetLQRController( A, B, C, ro ):
 
 
 if __name__ == '__main__':
-  A = numpy.matrix( [ [ 0, 1 ], [ 0, 0 ] ] )
-  B = numpy.matrix( [ [ 0.5 ], [ 0.5 ] ] )
-  C = numpy.matrix( [ [ 1, 0 ] ] )
-  controller = GetLQRController( A, B, C )
+  A = numpy.matrix( [ [ 1, 0.5, 0.25 ], [ 0, 1, 0.5 ], [ 0, 0, 1 ] ] )
+  B = numpy.matrix( [ [ 0.0 ], [ 0.0 ], [ 0.5 ] ] )
+  C = numpy.matrix( [ [ 1, 0, 0 ], [ 0, 1, 0 ], [ 0, 0, 1 ] ] )
+  controller = GetLQRController( A, B, C, 0.0001 )
+  print( controller )

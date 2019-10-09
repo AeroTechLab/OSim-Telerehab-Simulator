@@ -13,6 +13,6 @@ class WaveTeleoperator:
       
     slaveFilteredOutput = self.waveController.PreProcess( remoteState, timeDelay )
     feedbackForce = self.waveController.Process( localState )
-    slaveCorrectedOutput = self.waveController.PostProcess()
+    slaveProcessedOutput = self.waveController.PostProcess( localForce )
     
-    return ( feedbackForce, slaveCorrectedOutput )
+    return ( feedbackForce, slaveFilteredOutput, ( localState[ 0 ], slaveProcessedOutput[ 1 ], 0.0 ) )

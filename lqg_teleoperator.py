@@ -11,4 +11,4 @@ class LQGTeleoperator:
   def Process( self, localState, remoteState, localForce, remoteForce, timeDelay ):
     controlForce = self.controller.Process( remoteState, localState, localForce )
     
-    return ( controlForce, remoteState )
+    return ( controlForce, remoteState, localState )

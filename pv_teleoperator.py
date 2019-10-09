@@ -11,4 +11,4 @@ class PVTeleoperator:
   def Process( self, localState, remoteState, localForce, remoteForce, timeDelay ):      
     controForce = self.controller.Process( remoteState, localState )
     
-    return ( controForce, remoteState )
+    return ( controForce, remoteState, localState )

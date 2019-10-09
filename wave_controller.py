@@ -30,7 +30,7 @@ class WaveController:
     self.lastPosition = inputPosition
     return self.lastForce
 
-  def PostProcess( self ):
+  def PostProcess( self, localForce ):
     outputWave = ( self.waveImpedance * self.lastVelocity - self.lastForce ) / math.sqrt( 2.0 * self.waveImpedance )  
     outputWaveIntegral = ( self.waveImpedance * self.lastPosition - self.lastMomentum ) / math.sqrt( 2.0 * self.waveImpedance )
     return ( outputWave, outputWaveIntegral )
