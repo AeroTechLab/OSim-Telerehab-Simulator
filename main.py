@@ -19,12 +19,12 @@ from matplotlib import pyplot
 SIM_TIME_STEPS_NUMBER = 2000
 
 USE_DELAY = False#True#False
-USE_VARIABLE_DELAY = True#False
+USE_VARIABLE_DELAY = False#True#False
 USE_DYNAMIC_IMPEDANCE = True#False
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Assistive", "Competitive"  ]
 ENVIRONMENT_TYPE = 2
 CONTROLLER_NAMES = [ "PV", "Wave Variables", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
-CONTROLLER_TYPE = 1
+CONTROLLER_TYPE = 0
 
 MASTER_KP = 10.0
 MASTER_KV = 4.0
@@ -163,8 +163,10 @@ try:
   masterInputStiffnesses = [ 0.0 ]
   slaveStiffnesses = [ 0.0 ]
   masterInputEnergy = [ 0.0 ]
-  slaveInputEnergy = [ 0.0 ]
-  inputEnergy = [ 0.0 ]
+  slaveFeedbackEnergy = [ 0.0 ]
+  masterNetEnergy = [ 0.0 ]
+  masterDissipatedEnergy = [ 0.0 ]
+  referenceEnergy = [ 0.0 ]
   for timeStepIndex in range( 1, SIM_TIME_STEPS_NUMBER ):
     
     simTime = timeStepIndex * NET_TIME_STEP
@@ -263,17 +265,23 @@ try:
     slaveStiffnesses.append( slaveOutputImpedance[ 2 ] )
     masterInputPower = masterInput * masterOutput[ 1 ]
     masterInputEnergy.append( masterInputEnergy[ -1 ] + masterInputPower * NET_TIME_STEP )
-    slaveInputPower = slaveInput * slaveOutput[ 1 ]
-    slaveInputEnergy.append( slaveInputEnergy[ -1 ] + slaveInputPower * NET_TIME_STEP )
-    inputEnergy.append( inputEnergy[ -1 ] + ( masterInputPower + slaveInputPower ) * NET_TIME_STEP )
-
+    slaveFeedbackPower = slaveFeedbackInput * masterOutput[ 1 ]
+    slaveFeedbackEnergy.append( slaveFeedbackEnergy[ -1 ] + slaveFeedbackPower * NET_TIME_STEP )
+    masterNetEnergy.append( masterNetEnergy[ -1 ] + ( masterInputPower + slaveFeedbackPower ) * NET_TIME_STEP )
+    masterDissipatedPower = masterPlantImpedance[ 1 ] * masterOutput[ 1 ] * masterOutput[ 1 ]
+    if masterDissipatedPower < 0.0: masterDissipatedPower = 0.0
+    masterDissipatedEnergy.append( masterDissipatedEnergy[ -1 ] + masterDissipatedPower * NET_TIME_STEP )
+    referencePower = ( referenceInput + referenceFeedbackInput ) * referenceOutput[ 1 ]
+    referenceEnergy.append( referenceEnergy[ -1 ] + referencePower * NET_TIME_STEP )
+    
   #model.setUseVisualizer( False )
   
   positionErrorRMS = math.sqrt( positionErrorRMS )
   inertiaErrorRMS = math.sqrt( inertiaErrorRMS )
   dampingErrorRMS = math.sqrt( dampingErrorRMS )
   stiffnessErrorRMS = math.sqrt( stiffnessErrorRMS )
-  print( "{:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format( positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS, inputEnergy[ -1 ] ) )
+  print( "{:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format( positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS, masterNetEnergy[ -1 ] ) )
+  
   pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.2, 0.2 ] )
   pyplot.title( 'Teleoperation w/ {} Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error=({:.3f},{:.3f},{:.3f}) )\n'.format( 
                 ENVIRONMENT_NAMES[ ENVIRONMENT_TYPE ], NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ CONTROLLER_TYPE ], positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS ), fontsize=15 )
@@ -283,10 +291,12 @@ try:
   #pyplot.plot( timeSteps, masterDelayedPositions, 'b:', timeSteps, slaveDelayedPositions, 'r:' )
   #pyplot.plot( timeSteps, masterSetpointPositions, 'b--', timeSteps, slaveSetpointPositions, 'r--' )
   pyplot.plot( timeSteps, masterPositions, 'b-', timeSteps, slavePositions, 'r-' )
+  pyplot.legend( [ 'reference', 'master', 'slave' ] )
   #pyplot.legend( [ 'reference', 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
-  pyplot.legend( [ 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
+  #pyplot.legend( [ 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
+  
   #pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.5, 1.5 ] )
-  pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.5, 0.5 ] )
+  pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.2, 0.2 ] )
   #pyplot.ylabel( 'Force [N]', fontsize=10 )
   #pyplot.tick_params( axis='x', labelsize=0 )
   #pyplot.plot( timeSteps, masterInputs, 'g-', timeSteps, slaveInputs, 'm-' )
@@ -295,8 +305,10 @@ try:
   #pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.75, 0.75 ] )
   pyplot.ylabel( 'Energy [J]', fontsize=10 )
   #pyplot.xlabel( 'Time [s]', fontsize=10 )
-  pyplot.plot( timeSteps, masterInputEnergy, 'b-', timeSteps, slaveInputEnergy, 'r-', timeSteps, inputEnergy, 'g-' )
-  pyplot.legend( [ 'master-input', 'slave-input', 'net-input' ] )
+  pyplot.plot( timeSteps, masterInputEnergy, 'b-', timeSteps, slaveFeedbackEnergy, 'r-', timeSteps, masterNetEnergy, 'g-', timeSteps, masterDissipatedEnergy, 'm-' )
+  pyplot.plot( timeSteps, referenceEnergy, 'k:' )
+  pyplot.legend( [ 'master-input', 'slave-feeback', 'net-work', 'master-dissipated' ] )
+  
   pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -2.5, 7.5 ] )
   pyplot.ylabel( 'Impedance', fontsize=10 )
   pyplot.xlabel( 'Time [s]', fontsize=10 )
