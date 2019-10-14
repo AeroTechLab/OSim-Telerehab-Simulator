@@ -9,6 +9,8 @@ from lqg_prediction_teleoperator import LQGPredTeleoperator
 from lqg_feedback_teleoperator import LQGFFBTeleoperator
 from lqg_feedback_prediction_teleoperator import LQGFFBPredTeleoperator
 
+from mtdpc_stabilizer import MTDPCStabilizer
+
 from simple_plant import SimplePlant
 import opensim
 
@@ -21,14 +23,15 @@ SIM_TIME_STEPS_NUMBER = 2000
 USE_DELAY = False#True#False
 USE_VARIABLE_DELAY = False#True#False
 USE_DYNAMIC_IMPEDANCE = True#False
-ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Assistive", "Competitive"  ]
-ENVIRONMENT_TYPE = 2
+USE_STABILIZER = False#True#False
+ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Power Assistive", "Coordination Assistive", "Competitive"  ]
+ENVIRONMENT_TYPE = 3
 CONTROLLER_NAMES = [ "PV", "Wave Variables", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
-CONTROLLER_TYPE = 0
+CONTROLLER_TYPE = 1
 
-MASTER_KP = 10.0
+MASTER_KP = 4.0
 MASTER_KV = 4.0
-SLAVE_KP = 5.0
+SLAVE_KP = 8.0
 SLAVE_KV = 2.0
 
 NET_TIME_STEP = 0.02
@@ -43,10 +46,14 @@ elif CONTROLLER_TYPE == 4: Teleoperator = LQGFFBTeleoperator
 elif CONTROLLER_TYPE == 5: Teleoperator = LQGFFBPredTeleoperator
 
 OPERATOR_IMPEDANCE = ( 1.0, 0.0, 0.0 )
+STABILIZER_FACTOR = 0.5
+
 masterLinearizer = SystemLinearizer()
 slaveLinearizer = SystemLinearizer()
 masterTeleoperator = Teleoperator( OPERATOR_IMPEDANCE, NET_TIME_STEP )
 slaveTeleoperator = Teleoperator( OPERATOR_IMPEDANCE, NET_TIME_STEP )
+masterStabilizer = MTDPCStabilizer( STABILIZER_FACTOR, NET_TIME_STEP )
+slaveStabilizer = MTDPCStabilizer( STABILIZER_FACTOR, NET_TIME_STEP )
 
 masterToSlaveQueue = [ ( ( 0.0, 0.0, 0.0 ), 0.0 ) ]
 masterToSlaveTimesQueue = [ 0.0 ]
@@ -158,10 +165,13 @@ try:
   slaveFeedbackInputs = [ 0.0 ]
   masterInputInertias = [ 0.0 ]
   slaveInertias = [ 0.0 ]
+  masterInertias = [ 0.0 ]
   masterInputDampings = [ 0.0 ]
   slaveDampings = [ 0.0 ]
+  masterDampings = [ 0.0 ]
   masterInputStiffnesses = [ 0.0 ]
   slaveStiffnesses = [ 0.0 ]
+  masterStiffnesses = [ 0.0 ]
   masterInputEnergy = [ 0.0 ]
   slaveFeedbackEnergy = [ 0.0 ]
   masterNetEnergy = [ 0.0 ]
@@ -193,6 +203,7 @@ try:
     # master control
     controlOutput = masterTeleoperator.Process( masterOutput, slaveDelayedOutput, masterInput, slaveDelayedInput, slaveToMasterDelays[ -1 ] )
     slaveFeedbackInput, slaveCorrectedOutput, masterState = controlOutput
+    if USE_STABILIZER: slaveFeedbackInput = masterStabilizer.Process( slaveFeedbackInput, MASTER_KV, masterOutput[ 1 ] )
     masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedbackInput )
     #masterOutput = masterPlant.Process( masterInput + slaveFeedbackInput )
     # send slave delayed setpoints
@@ -206,7 +217,8 @@ try:
                     slaveCoordinate.getAccelerationValue( systemState ) )
     slaveInput = 0.0
     if ENVIRONMENT_TYPE == 1: slaveInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
-    elif ENVIRONMENT_TYPE == 2: slaveInput = SLAVE_KP * ( setpoint - slaveOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - slaveOutput[ 1 ] )
+    elif ENVIRONMENT_TYPE == 2: slaveInput = SLAVE_KV * slaveOutput[ 1 ]
+    elif ENVIRONMENT_TYPE == 3: slaveInput = SLAVE_KP * ( setpoint - slaveOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - slaveOutput[ 1 ] )
     elif ENVIRONMENT_TYPE == 3: slaveInput = SLAVE_KP * ( -setpoint - slaveOutput[ 0 ] ) + SLAVE_KV * ( -speedSetpoint - slaveOutput[ 1 ] )
     slaveInputActuator.setOverrideActuation( systemState, slaveInput )
     # receive slave delayed setpoints
@@ -221,6 +233,7 @@ try:
     # slave control
     controlOutput = slaveTeleoperator.Process( slaveOutput, masterDelayedOutput, slaveInput, masterDelayedInput, masterToSlaveDelays[ -1 ] )
     masterFeedbackInput, masterCorrectedOutput, slaveState = controlOutput
+    #if USE_STABILIZER: masterFeedbackInput = slaveStabilizer.Process( masterFeedbackInput, SLAVE_KV, slaveOutput[ 1 ] )
     slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedbackInput )
     #slaveOutput = slavePlant.Process( slaveInput + masterFeedbackInput )
     # send master delayed setpoints
@@ -231,8 +244,9 @@ try:
     referenceInput = MASTER_KP * ( setpoint - referenceOutput[ 0 ] ) + MASTER_KV * ( speedSetpoint - referenceOutput[ 1 ] )
     referenceFeedbackInput = 0.0
     if ENVIRONMENT_TYPE == 1: referenceFeedbackInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
-    elif ENVIRONMENT_TYPE == 2: referenceFeedbackInput = SLAVE_KP * ( setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - referenceOutput[ 1 ] )
-    elif ENVIRONMENT_TYPE == 3: referenceFeedbackInput = SLAVE_KP * ( -setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( -speedSetpoint - referenceOutput[ 1 ] )
+    elif ENVIRONMENT_TYPE == 2: referenceFeedbackInput = SLAVE_KV * referenceOutput[ 1 ]
+    elif ENVIRONMENT_TYPE == 3: referenceFeedbackInput = SLAVE_KP * ( setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - referenceOutput[ 1 ] )
+    elif ENVIRONMENT_TYPE == 4: referenceFeedbackInput = SLAVE_KP * ( -setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( -speedSetpoint - referenceOutput[ 1 ] )
     referenceOutput = referencePlant.Process( referenceInput + referenceFeedbackInput )
     
     # system update
@@ -259,10 +273,13 @@ try:
     slaveFeedbackInputs.append( slaveFeedbackInput )
     masterInputInertias.append( masterInputImpedance[ 0 ] )
     slaveInertias.append( slaveOutputImpedance[ 0 ] )
+    masterInertias.append( masterOutputImpedance[ 0 ] )
     masterInputDampings.append( masterInputImpedance[ 1 ] )
     slaveDampings.append( slaveOutputImpedance[ 1 ] )
+    masterDampings.append( masterOutputImpedance[ 1 ] )
     masterInputStiffnesses.append( masterInputImpedance[ 2 ] )
     slaveStiffnesses.append( slaveOutputImpedance[ 2 ] )
+    masterStiffnesses.append( masterOutputImpedance[ 2 ] )
     masterInputPower = masterInput * masterOutput[ 1 ]
     masterInputEnergy.append( masterInputEnergy[ -1 ] + masterInputPower * NET_TIME_STEP )
     slaveFeedbackPower = slaveFeedbackInput * masterOutput[ 1 ]
@@ -309,12 +326,12 @@ try:
   pyplot.plot( timeSteps, referenceEnergy, 'k:' )
   pyplot.legend( [ 'master-input', 'slave-feeback', 'net-work', 'master-dissipated' ] )
   
-  pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -2.5, 7.5 ] )
+  pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -2.5, 8.5 ] )
   pyplot.ylabel( 'Impedance', fontsize=10 )
   pyplot.xlabel( 'Time [s]', fontsize=10 )
-  pyplot.plot( timeSteps, masterInputInertias, 'b--', timeSteps, slaveInertias, 'r--' )
-  pyplot.plot( timeSteps, masterInputDampings, 'b-.', timeSteps, slaveDampings, 'r-.' )
-  pyplot.plot( timeSteps, masterInputStiffnesses, 'b:', timeSteps, slaveStiffnesses, 'r:' )
+  pyplot.plot( timeSteps, masterInputInertias, 'b--', timeSteps, slaveInertias, 'r--', timeSteps, masterInertias, 'k--' )
+  pyplot.plot( timeSteps, masterInputDampings, 'b-.', timeSteps, slaveDampings, 'r-.', timeSteps, masterDampings, 'k-.' )
+  pyplot.plot( timeSteps, masterInputStiffnesses, 'b:', timeSteps, slaveStiffnesses, 'r:', timeSteps, masterStiffnesses, 'k:' )
   pyplot.legend( [ 'master-inertia', 'slave-inertia', 'master-damping', 'slave-damping', 'master-stiffness', 'slave-stiffness' ] )
   pyplot.show()
 except Exception as e:
