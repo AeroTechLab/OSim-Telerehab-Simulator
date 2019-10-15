@@ -20,14 +20,14 @@ from matplotlib import pyplot
 
 SIM_TIME_STEPS_NUMBER = 2000
 
-USE_DELAY = False#True#False
+USE_DELAY = True#False
 USE_VARIABLE_DELAY = False#True#False
 USE_DYNAMIC_IMPEDANCE = True#False
 USE_STABILIZER = False#True#False
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Power Assistive", "Coordination Assistive", "Competitive"  ]
 ENVIRONMENT_TYPE = 3
 CONTROLLER_NAMES = [ "PV", "Wave Variables", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
-CONTROLLER_TYPE = 1
+CONTROLLER_TYPE = 4
 
 MASTER_KP = 4.0
 MASTER_KV = 4.0
@@ -46,7 +46,7 @@ elif CONTROLLER_TYPE == 4: Teleoperator = LQGFFBTeleoperator
 elif CONTROLLER_TYPE == 5: Teleoperator = LQGFFBPredTeleoperator
 
 OPERATOR_IMPEDANCE = ( 1.0, 0.0, 0.0 )
-STABILIZER_FACTOR = 0.5
+STABILIZER_FACTOR = 0.7
 
 masterLinearizer = SystemLinearizer()
 slaveLinearizer = SystemLinearizer()
@@ -165,13 +165,10 @@ try:
   slaveFeedbackInputs = [ 0.0 ]
   masterInputInertias = [ 0.0 ]
   slaveInertias = [ 0.0 ]
-  masterInertias = [ 0.0 ]
   masterInputDampings = [ 0.0 ]
   slaveDampings = [ 0.0 ]
-  masterDampings = [ 0.0 ]
   masterInputStiffnesses = [ 0.0 ]
   slaveStiffnesses = [ 0.0 ]
-  masterStiffnesses = [ 0.0 ]
   masterInputEnergy = [ 0.0 ]
   slaveFeedbackEnergy = [ 0.0 ]
   masterNetEnergy = [ 0.0 ]
@@ -273,19 +270,16 @@ try:
     slaveFeedbackInputs.append( slaveFeedbackInput )
     masterInputInertias.append( masterInputImpedance[ 0 ] )
     slaveInertias.append( slaveOutputImpedance[ 0 ] )
-    masterInertias.append( masterOutputImpedance[ 0 ] )
     masterInputDampings.append( masterInputImpedance[ 1 ] )
     slaveDampings.append( slaveOutputImpedance[ 1 ] )
-    masterDampings.append( masterOutputImpedance[ 1 ] )
     masterInputStiffnesses.append( masterInputImpedance[ 2 ] )
     slaveStiffnesses.append( slaveOutputImpedance[ 2 ] )
-    masterStiffnesses.append( masterOutputImpedance[ 2 ] )
     masterInputPower = masterInput * masterOutput[ 1 ]
     masterInputEnergy.append( masterInputEnergy[ -1 ] + masterInputPower * NET_TIME_STEP )
     slaveFeedbackPower = slaveFeedbackInput * masterOutput[ 1 ]
     slaveFeedbackEnergy.append( slaveFeedbackEnergy[ -1 ] + slaveFeedbackPower * NET_TIME_STEP )
     masterNetEnergy.append( masterNetEnergy[ -1 ] + ( masterInputPower + slaveFeedbackPower ) * NET_TIME_STEP )
-    masterDissipatedPower = masterPlantImpedance[ 1 ] * masterOutput[ 1 ] * masterOutput[ 1 ]
+    masterDissipatedPower = MASTER_KV * masterOutput[ 1 ] * masterOutput[ 1 ]
     if masterDissipatedPower < 0.0: masterDissipatedPower = 0.0
     masterDissipatedEnergy.append( masterDissipatedEnergy[ -1 ] + masterDissipatedPower * NET_TIME_STEP )
     referencePower = ( referenceInput + referenceFeedbackInput ) * referenceOutput[ 1 ]
@@ -329,9 +323,9 @@ try:
   pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -2.5, 8.5 ] )
   pyplot.ylabel( 'Impedance', fontsize=10 )
   pyplot.xlabel( 'Time [s]', fontsize=10 )
-  pyplot.plot( timeSteps, masterInputInertias, 'b--', timeSteps, slaveInertias, 'r--', timeSteps, masterInertias, 'k--' )
-  pyplot.plot( timeSteps, masterInputDampings, 'b-.', timeSteps, slaveDampings, 'r-.', timeSteps, masterDampings, 'k-.' )
-  pyplot.plot( timeSteps, masterInputStiffnesses, 'b:', timeSteps, slaveStiffnesses, 'r:', timeSteps, masterStiffnesses, 'k:' )
+  pyplot.plot( timeSteps, masterInputInertias, 'b--', timeSteps, slaveInertias, 'r--' )
+  pyplot.plot( timeSteps, masterInputDampings, 'b-.', timeSteps, slaveDampings, 'r-.' )
+  pyplot.plot( timeSteps, masterInputStiffnesses, 'b:', timeSteps, slaveStiffnesses, 'r:' )
   pyplot.legend( [ 'master-inertia', 'slave-inertia', 'master-damping', 'slave-damping', 'master-stiffness', 'slave-stiffness' ] )
   pyplot.show()
 except Exception as e:
