@@ -1,3 +1,4 @@
+import sys
 import math
 
 from system_linearizer import SystemLinearizer
@@ -20,33 +21,43 @@ from matplotlib import pyplot
 
 SIM_TIME_STEPS_NUMBER = 2000
 
-USE_DELAY = False#True#False
-USE_VARIABLE_DELAY = False#True#False
-USE_DYNAMIC_IMPEDANCE = True#False
-USE_STABILIZER = False#True#False
+ENVIRONMENT_IDS = [ "fm", "r", "pa", "ca", "c"  ]
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Power Assistive", "Coordination Assistive", "Competitive"  ]
-ENVIRONMENT_TYPE = 3
+CONTROLLER_IDS = [ "pv", "wv", "lqg", "lqgp", "lqgf", "lqgfp" ]
 CONTROLLER_NAMES = [ "PV", "Wave Variables", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
-CONTROLLER_TYPE = 1
 
 MASTER_KP = 4.0
 MASTER_KV = 4.0
 SLAVE_KP = 8.0
 SLAVE_KV = 2.0
 
-NET_TIME_STEP = 0.02
-NET_DELAY_AVG = 0.2 if USE_DELAY else 0.0
-NET_DELAY_VAR = 0.1 if ( USE_DELAY and USE_VARIABLE_DELAY ) else 0.0
-
-Teleoperator = PVTeleoperator
-if CONTROLLER_TYPE == 1: Teleoperator = WaveTeleoperator
-elif CONTROLLER_TYPE == 2: Teleoperator = LQGTeleoperator
-elif CONTROLLER_TYPE == 3: Teleoperator = LQGPredTeleoperator
-elif CONTROLLER_TYPE == 4: Teleoperator = LQGFFBTeleoperator
-elif CONTROLLER_TYPE == 5: Teleoperator = LQGFFBPredTeleoperator
-
 OPERATOR_IMPEDANCE = ( 1.0, 0.0, 0.0 )
 STABILIZER_FACTOR = 0.5
+
+NET_TIME_STEP = 0.02
+
+useDelay = False
+useVariableDelay = False
+useDynamicImpedance = False
+useStabilizer = False
+environmentType = ENVIRONMENT_IDS.index( sys.argv[ 1 ] )
+controllerType = CONTROLLER_IDS.index( sys.argv[ 2 ] )
+for arg in sys.argv[ 3: ]:
+  if arg == '--delay': useDelay = True
+  elif arg == '--jitter': useVariableDelay = True
+  elif arg == '--dynamic': useDynamicImpedance = True
+  elif arg == '--stabilizer': useStabilizer = True
+print( environmentType, controllerType, useDelay, useVariableDelay, useDynamicImpedance, useStabilizer )
+
+NET_DELAY_AVG = 0.2 if useDelay else 0.0
+NET_DELAY_VAR = 0.1 if ( useDelay and useVariableDelay ) else 0.0
+
+Teleoperator = PVTeleoperator
+if controllerType == 1: Teleoperator = WaveTeleoperator
+elif controllerType == 2: Teleoperator = LQGTeleoperator
+elif controllerType == 3: Teleoperator = LQGPredTeleoperator
+elif controllerType == 4: Teleoperator = LQGFFBTeleoperator
+elif controllerType == 5: Teleoperator = LQGFFBPredTeleoperator
 
 masterLinearizer = SystemLinearizer()
 slaveLinearizer = SystemLinearizer()
@@ -199,11 +210,11 @@ try:
     # linearize master system
     masterLinearizer.AddSample( masterOutput[ 0 ], masterOutput[ 1 ], masterOutput[ 2 ], masterInput, slaveFeedbackInputs[ -1 ] )
     masterInputImpedance, masterOutputImpedance, masterPlantImpedance = masterLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
-    if USE_DYNAMIC_IMPEDANCE: masterTeleoperator.SetSystem( masterPlantImpedance )
+    if useDynamicImpedance: masterTeleoperator.SetSystem( masterPlantImpedance )
     # master control
     controlOutput = masterTeleoperator.Process( masterOutput, slaveDelayedOutput, masterInput, slaveDelayedInput, slaveToMasterDelays[ -1 ] )
     slaveFeedbackInput, slaveCorrectedOutput, masterState = controlOutput
-    if USE_STABILIZER: slaveFeedbackInput = masterStabilizer.Process( slaveFeedbackInput, MASTER_KV, masterOutput[ 1 ] )
+    if useStabilizer: slaveFeedbackInput = masterStabilizer.Process( slaveFeedbackInput, MASTER_KV, masterOutput[ 1 ] )
     masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedbackInput )
     #masterOutput = masterPlant.Process( masterInput + slaveFeedbackInput )
     # send slave delayed setpoints
@@ -216,10 +227,10 @@ try:
                     slaveCoordinate.getSpeedValue( systemState ),
                     slaveCoordinate.getAccelerationValue( systemState ) )
     slaveInput = 0.0
-    if ENVIRONMENT_TYPE == 1: slaveInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
-    elif ENVIRONMENT_TYPE == 2: slaveInput = SLAVE_KV * slaveOutput[ 1 ]
-    elif ENVIRONMENT_TYPE == 3: slaveInput = SLAVE_KP * ( setpoint - slaveOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - slaveOutput[ 1 ] )
-    elif ENVIRONMENT_TYPE == 3: slaveInput = SLAVE_KP * ( -setpoint - slaveOutput[ 0 ] ) + SLAVE_KV * ( -speedSetpoint - slaveOutput[ 1 ] )
+    if environmentType == 1: slaveInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
+    elif environmentType == 2: slaveInput = SLAVE_KV * slaveOutput[ 1 ]
+    elif environmentType == 3: slaveInput = SLAVE_KP * ( setpoint - slaveOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - slaveOutput[ 1 ] )
+    elif environmentType == 3: slaveInput = SLAVE_KP * ( -setpoint - slaveOutput[ 0 ] ) + SLAVE_KV * ( -speedSetpoint - slaveOutput[ 1 ] )
     slaveInputActuator.setOverrideActuation( systemState, slaveInput )
     # receive slave delayed setpoints
     while simTime >= masterToSlaveTimesQueue[ 0 ]:
@@ -229,11 +240,11 @@ try:
     # linearize slave system
     slaveLinearizer.AddSample( slaveOutput[ 0 ], slaveOutput[ 1 ], slaveOutput[ 2 ], slaveInput, masterFeedbackInputs[ -1 ] )
     slaveInputImpedance, slaveOutputImpedance, slavePlantImpedance = slaveLinearizer.IdentifySystem( OPERATOR_IMPEDANCE )
-    if USE_DYNAMIC_IMPEDANCE: slaveTeleoperator.SetSystem( slavePlantImpedance )
+    if useDynamicImpedance: slaveTeleoperator.SetSystem( slavePlantImpedance )
     # slave control
     controlOutput = slaveTeleoperator.Process( slaveOutput, masterDelayedOutput, slaveInput, masterDelayedInput, masterToSlaveDelays[ -1 ] )
     masterFeedbackInput, masterCorrectedOutput, slaveState = controlOutput
-    #if USE_STABILIZER: masterFeedbackInput = slaveStabilizer.Process( masterFeedbackInput, SLAVE_KV, slaveOutput[ 1 ] )
+    #if useStabilizer: masterFeedbackInput = slaveStabilizer.Process( masterFeedbackInput, SLAVE_KV, slaveOutput[ 1 ] )
     slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedbackInput )
     #slaveOutput = slavePlant.Process( slaveInput + masterFeedbackInput )
     # send master delayed setpoints
@@ -243,10 +254,10 @@ try:
     
     referenceInput = MASTER_KP * ( setpoint - referenceOutput[ 0 ] ) + MASTER_KV * ( speedSetpoint - referenceOutput[ 1 ] )
     referenceFeedbackInput = 0.0
-    if ENVIRONMENT_TYPE == 1: referenceFeedbackInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
-    elif ENVIRONMENT_TYPE == 2: referenceFeedbackInput = SLAVE_KV * referenceOutput[ 1 ]
-    elif ENVIRONMENT_TYPE == 3: referenceFeedbackInput = SLAVE_KP * ( setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - referenceOutput[ 1 ] )
-    elif ENVIRONMENT_TYPE == 4: referenceFeedbackInput = SLAVE_KP * ( -setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( -speedSetpoint - referenceOutput[ 1 ] )
+    if environmentType == 1: referenceFeedbackInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
+    elif environmentType == 2: referenceFeedbackInput = SLAVE_KV * referenceOutput[ 1 ]
+    elif environmentType == 3: referenceFeedbackInput = SLAVE_KP * ( setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( speedSetpoint - referenceOutput[ 1 ] )
+    elif environmentType == 4: referenceFeedbackInput = SLAVE_KP * ( -setpoint - referenceOutput[ 0 ] ) + SLAVE_KV * ( -speedSetpoint - referenceOutput[ 1 ] )
     referenceOutput = referencePlant.Process( referenceInput + referenceFeedbackInput )
     
     # system update
@@ -301,7 +312,7 @@ try:
   
   pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.2, 0.2 ] )
   pyplot.title( 'Teleoperation w/ {} Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error=({:.3f},{:.3f},{:.3f}) )\n'.format( 
-                ENVIRONMENT_NAMES[ ENVIRONMENT_TYPE ], NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ CONTROLLER_TYPE ], positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS ), fontsize=15 )
+                ENVIRONMENT_NAMES[ environmentType ], NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ controllerType ], positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS ), fontsize=15 )
   pyplot.ylabel( 'Position [m]', fontsize=10 )
   pyplot.tick_params( axis='x', labelsize=0 )
   pyplot.plot( timeSteps, referencePositions, 'k:' )
