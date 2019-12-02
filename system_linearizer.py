@@ -1,5 +1,4 @@
 import numpy
-#import scipy.optimize as optimization
 
 PARAMETERS_NUMBER = 3
 INPUTS_NUMBER = 3
@@ -28,8 +27,6 @@ class SystemLinearizer:
     plantImpedance = defaultImpedance
     if self.samplesCount >= SAMPLES_NUMBER:
       estimatedParameters, residuals, rank, s = numpy.linalg.lstsq( self.statesList, self.inputsList, rcond=None )
-      #estimatedParameters = optimization.nnls( inputSamplesTable, outputSamplesList.ravel() )[ 0 ]
-      #estimatedParameters = optimization.lsq_linear( inputSamplesTable, outputSamplesList.ravel(), bounds=( 0, numpy.inf ) ).x
       inputImpedance = ( estimatedParameters[ 0 ][ 0 ], estimatedParameters[ 1 ][ 0 ], estimatedParameters[ 2 ][ 0 ] )
       outputImpedance = ( estimatedParameters[ 0 ][ 1 ], estimatedParameters[ 1 ][ 1 ], estimatedParameters[ 2 ][ 1 ] )
       plantImpedance = ( estimatedParameters[ 0 ][ 2 ], estimatedParameters[ 1 ][ 2 ], estimatedParameters[ 2 ][ 2 ] )
