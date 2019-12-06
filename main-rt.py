@@ -26,8 +26,8 @@ ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Power Assistive", "Coordinati
 CONTROLLER_IDS = [ "pv", "wv", "lqg", "lqgp", "lqgf", "lqgfp" ]
 CONTROLLER_NAMES = [ "PV", "Wave Variables", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
 
-MASTER_KP = 4.0
-SLAVE_KP = 8.0
+MASTER_INPUT_GAIN = 4.0
+SLAVE_INPUT_GAIN = 8.0
 
 MASTER_IMPEDANCE = ( 1.0, 4.0, 0.0 )
 SLAVE_IMPEDANCE = ( 1.0, 2.0, 0.0 )
@@ -85,28 +85,28 @@ try:
   model.setName( 'TelerehabSimulator' )
   model.setGravity( opensim.Vec3( 0, 0, 0 ) )
 
-  master = opensim.Body( 'master', MASTER_IMPEDANCE[ 0 ], opensim.Vec3( 0, 0, 0 ), opensim.Inertia( 0, 0, 0 ) )
+  master = opensim.Body( 'master', MASTER_IMPEDANCE[ 0 ], opensim.Vec3( 0, 0, 0 ), opensim.Inertia( 1, 1, 1 ) )
   model.addBody( master )
-  slave = opensim.Body( 'slave', SLAVE_IMPEDANCE[ 0 ], opensim.Vec3( 0, 0, 0 ), opensim.Inertia( 0, 0, 0 ) )
+  slave = opensim.Body( 'slave', SLAVE_IMPEDANCE[ 0 ], opensim.Vec3( 0, 0, 0 ), opensim.Inertia( 1, 1, 1 ) )
   model.addBody( slave )
 
   ground = model.getGround()
-  masterToGround = opensim.SliderJoint( 'master2ground', ground, master )
+  masterToGround = opensim.PinJoint( 'master2ground', ground, master )
   model.addJoint( masterToGround )
-  slaveToGround = opensim.SliderJoint( 'slave2ground', ground, slave )
+  slaveToGround = opensim.PinJoint( 'slave2ground', ground, slave )
   model.addJoint( slaveToGround )
   
-  blockMesh = opensim.Brick( opensim.Vec3( 0.5, 0.5, 0.5 ) )
+  blockMesh = opensim.Brick( opensim.Vec3( 0.5, 0.5, 0.25 ) )
   blockMesh.setColor( opensim.Red )
   masterOffsetFrame = opensim.PhysicalOffsetFrame()
   masterOffsetFrame.setParentFrame( master )
-  masterOffsetFrame.setOffsetTransform( opensim.Transform( opensim.Vec3( 0, 0, 0.5 ) ) )
+  masterOffsetFrame.setOffsetTransform( opensim.Transform( opensim.Vec3( 0, 0, 0.25 ) ) )
   master.addComponent( masterOffsetFrame )
   masterOffsetFrame.attachGeometry( blockMesh.clone() )
   blockMesh.setColor( opensim.Blue )
   slaveOffsetFrame = opensim.PhysicalOffsetFrame()
   slaveOffsetFrame.setParentFrame( slave )
-  slaveOffsetFrame.setOffsetTransform( opensim.Transform( opensim.Vec3( 0, 0, -0.5 ) ) )
+  slaveOffsetFrame.setOffsetTransform( opensim.Transform( opensim.Vec3( 0, 0, -0.25 ) ) )
   slave.addComponent( slaveOffsetFrame )
   slaveOffsetFrame.attachGeometry( blockMesh.clone() )
   
@@ -193,10 +193,10 @@ try:
     while inputSilo.isAnyUserInput():
       key = inputSilo.takeKeyHitKeyOnly()
       if key == opensim.SimTKVisualizerInputListener.KeyEsc: isRunning = False
-      elif key == opensim.SimTKVisualizerInputListener.KeyUpArrow: slaveInput = -1.0
-      elif key == opensim.SimTKVisualizerInputListener.KeyDownArrow: slaveInput = 1.0
-      elif key == opensim.SimTKVisualizerInputListener.KeyLeftArrow: masterInput = -1.0
-      elif key == opensim.SimTKVisualizerInputListener.KeyRightArrow: masterInput = 1.0
+      elif key == opensim.SimTKVisualizerInputListener.KeyUpArrow: slaveInput = SLAVE_INPUT_GAIN
+      elif key == opensim.SimTKVisualizerInputListener.KeyDownArrow: slaveInput = -SLAVE_INPUT_GAIN
+      elif key == opensim.SimTKVisualizerInputListener.KeyLeftArrow: masterInput = MASTER_INPUT_GAIN
+      elif key == opensim.SimTKVisualizerInputListener.KeyRightArrow: masterInput = -MASTER_INPUT_GAIN
     masterInput = 0.2 * masterInput + 0.8 * masterInputs[ -1 ]
     slaveInput = 0.2 * slaveInput + 0.8 * slaveInputs[ -1 ]
     
@@ -220,7 +220,7 @@ try:
     # master control
     controlOutput = masterTeleoperator.Process( masterOutput, slaveDelayedOutput, masterInput, slaveDelayedInput, slaveToMasterDelays[ -1 ] )
     slaveFeedbackInput, slaveCorrectedOutput, masterState = controlOutput
-    if useStabilizer: slaveFeedbackInput = masterStabilizer.Process( slaveFeedbackInput, MASTER_KV, masterOutput[ 1 ] )
+    if useStabilizer: slaveFeedbackInput = masterStabilizer.Process( slaveFeedbackInput, masterPlantImpedance[ 1 ], masterOutput[ 1 ] )
     masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedbackInput )
     #masterOutput = masterPlant.Process( masterInput + slaveFeedbackInput )
     # send slave delayed setpoints
@@ -246,7 +246,7 @@ try:
     # slave control
     controlOutput = slaveTeleoperator.Process( slaveOutput, masterDelayedOutput, slaveInput, masterDelayedInput, masterToSlaveDelays[ -1 ] )
     masterFeedbackInput, masterCorrectedOutput, slaveState = controlOutput
-    #if useStabilizer: masterFeedbackInput = slaveStabilizer.Process( masterFeedbackInput, SLAVE_KV, slaveOutput[ 1 ] )
+    #if useStabilizer: masterFeedbackInput = slaveStabilizer.Process( masterFeedbackInput, slavePlantImpedance[ 1 ], slaveOutput[ 1 ] )
     slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedbackInput )
     #slaveOutput = slavePlant.Process( slaveInput + masterFeedbackInput )
     # send master delayed setpoints
@@ -290,7 +290,7 @@ try:
     slaveFeedbackPower = slaveFeedbackInput * masterOutput[ 1 ]
     slaveFeedbackEnergy.append( slaveFeedbackEnergy[ -1 ] + slaveFeedbackPower * NET_TIME_STEP )
     masterNetEnergy.append( masterNetEnergy[ -1 ] + ( masterInputPower + slaveFeedbackPower ) * NET_TIME_STEP )
-    masterDissipatedPower = MASTER_KV * masterOutput[ 1 ] * masterOutput[ 1 ]
+    masterDissipatedPower = MASTER_IMPEDANCE[ 1 ] * masterOutput[ 1 ] * masterOutput[ 1 ]
     if masterDissipatedPower < 0.0: masterDissipatedPower = 0.0
     masterDissipatedEnergy.append( masterDissipatedEnergy[ -1 ] + masterDissipatedPower * NET_TIME_STEP )
     referencePower = ( masterInput + slaveInput ) * referenceOutput[ 1 ]
@@ -306,7 +306,7 @@ try:
   stiffnessErrorRMS = math.sqrt( stiffnessErrorRMS )
   print( "{:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format( positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS, masterNetEnergy[ -1 ] ) )
   
-  pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.2, 0.2 ] )
+  pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.5, 0.5 ] )
   pyplot.title( 'Teleoperation w/ {} Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error=({:.3f},{:.3f},{:.3f}) )\n'.format( 
                 ENVIRONMENT_NAMES[ environmentType ], NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ controllerType ], positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS ), fontsize=15 )
   pyplot.ylabel( 'Position [m]', fontsize=10 )
@@ -333,7 +333,7 @@ try:
   pyplot.plot( timeSteps, referenceEnergy, 'k:' )
   pyplot.legend( [ 'master-input', 'slave-feeback', 'net-work', 'master-dissipated' ] )
   
-  pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -2.5, 8.5 ] )
+  pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.5, 7.5 ] )
   pyplot.ylabel( 'Impedance', fontsize=10 )
   pyplot.xlabel( 'Time [s]', fontsize=10 )
   pyplot.plot( timeSteps, masterInputInertias, 'b--', timeSteps, slaveInertias, 'r--' )

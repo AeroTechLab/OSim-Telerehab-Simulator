@@ -26,9 +26,9 @@ class SystemLinearizer:
     outputImpedance = defaultImpedance
     plantImpedance = defaultImpedance
     if self.samplesCount >= SAMPLES_NUMBER:
-      estimatedParameters, residuals, rank, s = numpy.linalg.lstsq( self.statesList, self.inputsList, rcond=None )
-      inputImpedance = ( estimatedParameters[ 0 ][ 0 ], estimatedParameters[ 1 ][ 0 ], estimatedParameters[ 2 ][ 0 ] )
-      outputImpedance = ( estimatedParameters[ 0 ][ 1 ], estimatedParameters[ 1 ][ 1 ], estimatedParameters[ 2 ][ 1 ] )
-      plantImpedance = ( estimatedParameters[ 0 ][ 2 ], estimatedParameters[ 1 ][ 2 ], estimatedParameters[ 2 ][ 2 ] )
+      parameters, residuals, rank, s = numpy.linalg.lstsq( self.statesList, self.inputsList, rcond=None )
+      inputImpedance = numpy.maximum( ( parameters[ 0 ][ 0 ], parameters[ 1 ][ 0 ], parameters[ 2 ][ 0 ] ), ( 0.0, 0.0, 0.0 ) )
+      outputImpedance = numpy.maximum( ( parameters[ 0 ][ 1 ], parameters[ 1 ][ 1 ], parameters[ 2 ][ 1 ] ), ( 0.0, 0.0, 0.0 ) )
+      plantImpedance = numpy.maximum( ( parameters[ 0 ][ 2 ], parameters[ 1 ][ 2 ], parameters[ 2 ][ 2 ] ), ( 0.0, 0.0, 0.0 ) )
     
     return ( inputImpedance, outputImpedance, plantImpedance )
