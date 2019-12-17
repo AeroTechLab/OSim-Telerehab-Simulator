@@ -21,8 +21,6 @@ from matplotlib import pyplot
 
 SIM_TIME_STEPS_NUMBER = 2000
 
-ENVIRONMENT_IDS = [ "fm", "r", "pa", "ca", "c"  ]
-ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Power Assistive", "Coordination Assistive", "Competitive"  ]
 CONTROLLER_IDS = [ "pv", "wv", "lqg", "lqgp", "lqgf", "lqgfp" ]
 CONTROLLER_NAMES = [ "PV", "Wave Variables", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
 
@@ -39,14 +37,13 @@ useDelay = False
 useVariableDelay = False
 useDynamicImpedance = False
 useStabilizer = False
-environmentType = ENVIRONMENT_IDS.index( sys.argv[ 1 ] )
-controllerType = CONTROLLER_IDS.index( sys.argv[ 2 ] )
-for arg in sys.argv[ 3: ]:
+controllerType = CONTROLLER_IDS.index( sys.argv[ 1 ] )
+for arg in sys.argv[ 2: ]:
   if arg == '--delay': useDelay = True
   elif arg == '--jitter': useVariableDelay = True
   elif arg == '--dynamic': useDynamicImpedance = True
   elif arg == '--stabilizer': useStabilizer = True
-print( environmentType, controllerType, useDelay, useVariableDelay, useDynamicImpedance, useStabilizer )
+print( controllerType, useDelay, useVariableDelay, useDynamicImpedance, useStabilizer )
 
 NET_DELAY_AVG = 0.2 if useDelay else 0.0
 NET_DELAY_VAR = 0.1 if ( useDelay and useVariableDelay ) else 0.0
@@ -306,9 +303,9 @@ try:
   stiffnessErrorRMS = math.sqrt( stiffnessErrorRMS )
   print( "{:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format( positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS, masterNetEnergy[ -1 ] ) )
   
-  pyplot.subplot( 311, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.5, 0.5 ] )
-  pyplot.title( 'Teleoperation w/ {} Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error=({:.3f},{:.3f},{:.3f}) )\n'.format( 
-                ENVIRONMENT_NAMES[ environmentType ], NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ controllerType ], positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS ), fontsize=15 )
+  pyplot.subplot( 411, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.75, 0.75 ] )
+  #pyplot.title( 'Teleoperation w/ Interactive Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error=({:.3f},{:.3f},{:.3f}) )\n'.format( 
+  #              NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ controllerType ], positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS ), fontsize=15 )
   pyplot.ylabel( 'Position [m]', fontsize=10 )
   pyplot.tick_params( axis='x', labelsize=0 )
   pyplot.plot( timeSteps, referencePositions, 'k:' )
@@ -319,21 +316,20 @@ try:
   #pyplot.legend( [ 'reference', 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
   #pyplot.legend( [ 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
   
-  #pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.5, 1.5 ] )
-  pyplot.subplot( 312, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.2, 0.2 ] )
-  #pyplot.ylabel( 'Force [N]', fontsize=10 )
+  pyplot.subplot( 412, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.0, 1.0 ] )
+  pyplot.ylabel( 'Force [N]', fontsize=10 )
   #pyplot.tick_params( axis='x', labelsize=0 )
-  #pyplot.plot( timeSteps, masterInputs, 'g-', timeSteps, slaveInputs, 'm-' )
-  #pyplot.plot( timeSteps, masterFeedbackInputs, 'b-', timeSteps, slaveFeedbackInputs, 'r-' )
-  #pyplot.legend( [ 'master-input', 'slave-input', 'master-feedback', 'slave-feedback' ] )
-  #pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.75, 0.75 ] )
+  pyplot.plot( timeSteps, masterInputs, 'g-', timeSteps, slaveInputs, 'm-' )
+  pyplot.plot( timeSteps, masterFeedbackInputs, 'b-', timeSteps, slaveFeedbackInputs, 'r-' )
+  pyplot.legend( [ 'master-input', 'slave-input', 'master-feedback', 'slave-feedback' ] )
+  pyplot.subplot( 413, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -1.5, 1.5 ] )
   pyplot.ylabel( 'Energy [J]', fontsize=10 )
   #pyplot.xlabel( 'Time [s]', fontsize=10 )
   pyplot.plot( timeSteps, masterInputEnergy, 'b-', timeSteps, slaveFeedbackEnergy, 'r-', timeSteps, masterNetEnergy, 'g-', timeSteps, masterDissipatedEnergy, 'm-' )
   pyplot.plot( timeSteps, referenceEnergy, 'k:' )
   pyplot.legend( [ 'master-input', 'slave-feeback', 'net-work', 'master-dissipated' ] )
   
-  pyplot.subplot( 313, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.5, 7.5 ] )
+  pyplot.subplot( 414, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.5, 7.5 ] )
   pyplot.ylabel( 'Impedance', fontsize=10 )
   pyplot.xlabel( 'Time [s]', fontsize=10 )
   pyplot.plot( timeSteps, masterInputInertias, 'b--', timeSteps, slaveInertias, 'r--' )
