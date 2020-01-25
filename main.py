@@ -27,17 +27,17 @@ ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Power Assistive", "Coordinati
 CONTROLLER_IDS = [ "pv", "wv", "wvp", "lqg", "lqgp", "lqgf", "lqgfp" ]
 CONTROLLER_NAMES = [ "PV", "Wave Variables", "Wave Variables Prediction", "LQG", "LQG Prediction", "LQG-FFB", "LQG-FFB Prediction" ]
 
-MASTER_KP = 4.0
-MASTER_KV = 4.0
-SLAVE_KP = 8.0
-SLAVE_KV = 2.0
-
+MASTER_INPUT_GAIN = 4.0
+MASTER_DAMPING = 4.0
+SLAVE_INPUT_GAIN = 8.0
+SLAVE_DAMPING = 2.0
 OPERATOR_INERTIA = 1.0
 
 STABILIZER_FACTOR = 0.6
 
 NET_TIME_STEP = 0.02
 
+useInput = False
 useDelay = False
 useVariableDelay = False
 useDynamicImpedance = False
@@ -45,7 +45,8 @@ useStabilizer = False
 environmentType = ENVIRONMENT_IDS.index( sys.argv[ 1 ] )
 controllerType = CONTROLLER_IDS.index( sys.argv[ 2 ] )
 for arg in sys.argv[ 3: ]:
-  if arg == '--delay': useDelay = True
+  if arg == '--interactive': useInput = True
+  elif arg == '--delay': useDelay = True
   elif arg == '--jitter': useVariableDelay = True
   elif arg == '--dynamic': useDynamicImpedance = True
   elif arg == '--stabilizer': useStabilizer = True
@@ -84,7 +85,7 @@ setpoints = lfilter( b, a, setpoints )
 try:
   model = opensim.Model()
   
-  #model.setUseVisualizer( True )
+  if useInput: model.setUseVisualizer( True )
   
   model.setName( 'TelerehabSimulator' )
   model.setGravity( opensim.Vec3( 0, 0, 0 ) )
@@ -147,19 +148,19 @@ try:
   systemState.setTime( 0 )
   manager.initialize( systemState )
   
-  referencePlant = SimplePlant( OPERATOR_INERTIA, 0.0, 0.0, NET_TIME_STEP )
-  #masterPlant = SimplePlant( OPERATOR_INERTIA, 0.0, 0.0, NET_TIME_STEP )
-  #slavePlant = SimplePlant( OPERATOR_INERTIA, 0.0, 0.0, NET_TIME_STEP )
+  referencePlant = SimplePlant( OPERATOR_INERTIA, MASTER_DAMPING + SLAVE_DAMPING, 0.0, NET_TIME_STEP )
   referenceOutput = ( 0.0, 0.0, 0.0 )
-  #masterOutput = ( 0.0, 0.0, 0.0 )
-  #slaveOutput = ( 0.0, 0.0, 0.0 )
   
-  #viz = model.updVisualizer().updSimbodyVisualizer()
-  #viz.setCameraFieldOfView( opensim.SimTK_PI / 3 )
+  if useInput:
+    inputSilo = model.updVisualizer().updInputSilo()
+    visualizer = model.updVisualizer().updSimbodyVisualizer()
+    
+    #viz = model.updVisualizer().updSimbodyVisualizer()
+    #viz.setCameraFieldOfView( opensim.SimTK_PI / 3 )
   
-  #viz.setCameraTransform( opensim.Transform( opensim.Vec3( 0, 0, 0.5 ) ) )
-  #viz.setBackgroundType( viz.SolidColor )
-  #viz.setBackgroundColor( opensim.White )
+    #viz.setCameraTransform( opensim.Transform( opensim.Vec3( 0, 0, 0.5 ) ) )
+    #viz.setBackgroundType( viz.SolidColor )
+    #viz.setBackgroundColor( opensim.White )
   
   referencePositions = [ 0.0 ]
   positionErrorRMS = 0.0
@@ -192,6 +193,19 @@ try:
     
     simTime = timeStepIndex * NET_TIME_STEP
     
+    masterInput = 0.0
+    slaveInput = 0.0 
+    if useInput:
+      while inputSilo.isAnyUserInput():
+        key = inputSilo.takeKeyHitKeyOnly()
+        if key == opensim.SimTKVisualizerInputListener.KeyEsc: isRunning = False
+        elif key == opensim.SimTKVisualizerInputListener.KeyUpArrow: slaveInput = SLAVE_INPUT_GAIN
+        elif key == opensim.SimTKVisualizerInputListener.KeyDownArrow: slaveInput = -SLAVE_INPUT_GAIN
+        elif key == opensim.SimTKVisualizerInputListener.KeyLeftArrow: masterInput = MASTER_INPUT_GAIN
+        elif key == opensim.SimTKVisualizerInputListener.KeyRightArrow: masterInput = -MASTER_INPUT_GAIN
+    masterInput = 0.2 * masterInput + 0.8 * masterInputs[ -1 ]
+    slaveInput = 0.2 * slaveInput + 0.8 * slaveInputs[ -1 ]
+    
     # general setpoints
     setpoint = setpoints[ timeStepIndex ]
     
@@ -199,23 +213,23 @@ try:
     masterOutput = ( masterCoordinate.getValue( systemState ),
                      masterCoordinate.getSpeedValue( systemState ),
                      masterCoordinate.getAccelerationValue( systemState ) )
-    masterInput = MASTER_KP * ( setpoint - masterOutput[ 0 ] ) - MASTER_KV * masterOutput[ 1 ]
-    masterInputActuator.setOverrideActuation( systemState, masterInput )
+    if not useInput: masterInput = MASTER_INPUT_GAIN * ( setpoint - masterOutput[ 0 ] )
+    masterResultingInput = masterInput - MASTER_DAMPING * masterOutput[ 1 ]
+    masterInputActuator.setOverrideActuation( systemState, masterResultingInput )
     # receive master delayed setpoints
     while simTime >= slaveToMasterTimesQueue[ 0 ]:
       slaveToMasterTimesQueue.pop( 0 )
       slaveDelayedPacket = slaveToMasterQueue.pop( 0 )
       if len( slaveToMasterQueue ) == 0: break
     # linearize master system
-    masterLinearizer.AddSample( masterOutput[ 0 ], masterOutput[ 1 ], masterOutput[ 2 ], masterInput, slaveFeedbackInputs[ -1 ] )
-    masterInputImpedance, masterOutputImpedance, masterPlantImpedance = masterLinearizer.IdentifySystem( ( OPERATOR_INERTIA, 0.0, 0.0 ) )
+    masterLinearizer.AddSample( masterOutput[ 0 ], masterOutput[ 1 ], masterOutput[ 2 ], masterResultingInput, slaveFeedbackInputs[ -1 ] )
+    masterInputImpedance, masterOutputImpedance, masterPlantImpedance = masterLinearizer.IdentifySystem( ( OPERATOR_INERTIA, MASTER_DAMPING, 0.0 ) )
     if useDynamicImpedance: masterTeleoperator.SetSystem( masterPlantImpedance )
     # master control
-    controlOutput = masterTeleoperator.Process( masterOutput, masterInput, slaveDelayedPacket, slaveToMasterDelays[ -1 ] )
+    controlOutput = masterTeleoperator.Process( masterOutput, masterResultingInput, slaveDelayedPacket, slaveToMasterDelays[ -1 ] )
     slaveFeedbackInput, slaveCorrectedOutput, masterToSlavePacket = controlOutput
-    if useStabilizer: slaveFeedbackInput = masterStabilizer.Process( masterInput, slaveFeedbackInput, MASTER_KV, masterOutput[ 1 ] )
+    if useStabilizer: slaveFeedbackInput = masterStabilizer.Process( masterResultingInput, slaveFeedbackInput, MASTER_DAMPING, masterOutput[ 1 ] )
     masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedbackInput )
-    #masterOutput = masterPlant.Process( masterInput + slaveFeedbackInput )
     # send slave delayed setpoints
     masterToSlaveQueue.append( masterToSlavePacket )
     masterToSlaveDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
@@ -225,38 +239,42 @@ try:
     slaveOutput = ( slaveCoordinate.getValue( systemState ),
                     slaveCoordinate.getSpeedValue( systemState ),
                     slaveCoordinate.getAccelerationValue( systemState ) )
-    slaveInput = 0.0
-    if environmentType == 1: slaveInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
-    elif environmentType == 2: slaveInput = SLAVE_KV * slaveOutput[ 1 ]
-    elif environmentType == 3: slaveInput = SLAVE_KP * ( setpoint - slaveOutput[ 0 ] ) - SLAVE_KV * slaveOutput[ 1 ]
-    elif environmentType == 4: slaveInput = SLAVE_KP * ( -setpoint - slaveOutput[ 0 ] ) - SLAVE_KV * slaveOutput[ 1 ]
-    slaveInputActuator.setOverrideActuation( systemState, slaveInput )
+    if not useInput:
+      if environmentType == 1: slaveInput = - SLAVE_INPUT_GAIN * slaveOutput[ 0 ]
+      elif environmentType == 2: slaveInput = 2 * SLAVE_DAMPING * slaveOutput[ 1 ]
+      elif environmentType == 3: slaveInput = SLAVE_INPUT_GAIN * ( setpoint - slaveOutput[ 0 ] )
+      elif environmentType == 4: slaveInput = SLAVE_INPUT_GAIN * ( -setpoint - slaveOutput[ 0 ] )
+    slaveResultingInput = slaveInput - SLAVE_DAMPING * slaveOutput[ 1 ]
+    slaveInputActuator.setOverrideActuation( systemState, slaveResultingInput )
     # receive slave delayed setpoints
     while simTime >= masterToSlaveTimesQueue[ 0 ]:
       masterToSlaveTimesQueue.pop( 0 )
       masterDelayedPacket = masterToSlaveQueue.pop( 0 )
       if len( masterToSlaveQueue ) == 0: break
     # linearize slave system
-    slaveLinearizer.AddSample( slaveOutput[ 0 ], slaveOutput[ 1 ], slaveOutput[ 2 ], slaveInput, masterFeedbackInputs[ -1 ] )
-    slaveInputImpedance, slaveOutputImpedance, slavePlantImpedance = slaveLinearizer.IdentifySystem( ( OPERATOR_INERTIA, 0.0, 0.0 ) )
+    slaveLinearizer.AddSample( slaveOutput[ 0 ], slaveOutput[ 1 ], slaveOutput[ 2 ], slaveResultingInput, masterFeedbackInputs[ -1 ] )
+    slaveInputImpedance, slaveOutputImpedance, slavePlantImpedance = slaveLinearizer.IdentifySystem( ( OPERATOR_INERTIA, SLAVE_DAMPING, 0.0 ) )
     if useDynamicImpedance: slaveTeleoperator.SetSystem( slavePlantImpedance )
     # slave control
-    controlOutput = slaveTeleoperator.Process( slaveOutput, slaveInput, masterDelayedPacket, masterToSlaveDelays[ -1 ] )
+    controlOutput = slaveTeleoperator.Process( slaveOutput, slaveResultingInput, masterDelayedPacket, masterToSlaveDelays[ -1 ] )
     masterFeedbackInput, masterCorrectedOutput, slaveToMasterPacket = controlOutput
-    if useStabilizer: masterFeedbackInput = slaveStabilizer.Process( slaveInput, masterFeedbackInput, SLAVE_KV, slaveOutput[ 1 ] )
+    if useStabilizer: masterFeedbackInput = slaveStabilizer.Process( slaveResultingInput, masterFeedbackInput, SLAVE_DAMPING, slaveOutput[ 1 ] )
     slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedbackInput )
-    #slaveOutput = slavePlant.Process( slaveInput + masterFeedbackInput )
     # send master delayed setpoints
     slaveToMasterQueue.append( slaveToMasterPacket )
     slaveToMasterDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
     slaveToMasterTimesQueue.append( simTime + slaveToMasterDelays[ -1 ] )
     
-    referenceInput = MASTER_KP * ( setpoint - referenceOutput[ 0 ] ) - MASTER_KV * referenceOutput[ 1 ]
-    referenceFeedbackInput = 0.0
-    if environmentType == 1: referenceFeedbackInput = - SLAVE_KP * slaveOutput[ 0 ] - SLAVE_KV * slaveOutput[ 1 ]
-    elif environmentType == 2: referenceFeedbackInput = SLAVE_KV * referenceOutput[ 1 ]
-    elif environmentType == 3: referenceFeedbackInput = SLAVE_KP * ( setpoint - referenceOutput[ 0 ] ) - SLAVE_KV * referenceOutput[ 1 ]
-    elif environmentType == 4: referenceFeedbackInput = SLAVE_KP * ( -setpoint - referenceOutput[ 0 ] ) - SLAVE_KV * referenceOutput[ 1 ]
+    # reference update 
+    referenceInput = masterInput
+    referenceFeedbackInput = slaveInput
+    if not useInput:
+      referenceInput = MASTER_INPUT_GAIN * ( setpoint - referenceOutput[ 0 ] )
+      referenceFeedbackInput = 0.0
+      if environmentType == 1: referenceFeedbackInput = - SLAVE_INPUT_GAIN * referenceOutput[ 0 ]
+      elif environmentType == 2: referenceFeedbackInput = 2 * SLAVE_DAMPING * referenceOutput[ 1 ]
+      elif environmentType == 3: referenceFeedbackInput = SLAVE_INPUT_GAIN * ( setpoint - referenceOutput[ 0 ] )
+      elif environmentType == 4: referenceFeedbackInput = SLAVE_INPUT_GAIN * ( -setpoint - referenceOutput[ 0 ] )
     referenceOutput = referencePlant.Process( referenceInput + referenceFeedbackInput )
     
     # system update
@@ -292,13 +310,13 @@ try:
     slaveFeedbackPower = slaveFeedbackInput * masterOutput[ 1 ]
     slaveFeedbackEnergy.append( slaveFeedbackEnergy[ -1 ] + slaveFeedbackPower * NET_TIME_STEP )
     masterNetEnergy.append( OPERATOR_INERTIA * masterOutput[ 1 ] * masterOutput[ 1 ] / 2 )
-    masterDissipatedPower = MASTER_KV * masterOutput[ 1 ] * masterOutput[ 1 ]
+    masterDissipatedPower = MASTER_DAMPING * masterOutput[ 1 ] * masterOutput[ 1 ]
     if masterDissipatedPower < 0.0: masterDissipatedPower = 0.0
     masterDissipatedEnergy.append( masterDissipatedEnergy[ -1 ] + masterDissipatedPower * NET_TIME_STEP )
     referencePower = ( masterInput + slaveInput ) * referenceOutput[ 1 ]
     referenceEnergy.append( referenceEnergy[ -1 ] + referencePower * NET_TIME_STEP )
     
-  #model.setUseVisualizer( False )
+  if useInput: model.setUseVisualizer( False )
   
   positionErrorRMS = math.sqrt( positionErrorRMS )
   inertiaErrorRMS = math.sqrt( inertiaErrorRMS )
