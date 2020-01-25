@@ -8,7 +8,9 @@ class LQGFFBTeleoperator:
   def SetSystem( self, impedance ):
     self.controller.SetSystem( impedance[ 0 ], impedance[ 1 ], impedance[ 2 ] )
   
-  def Process( self, localState, remoteState, localForce, remoteForce, timeDelay ):
+  def Process( self, localState, localForce, remotePacket, timeDelay ):
+    *remoteState, remoteForce = remotePacket
+    
     controlForce = self.controller.Process( remoteState, localState, remoteForce + localForce )
     
-    return ( controlForce + remoteForce, remoteState, localState )
+    return ( controlForce + remoteForce, remoteState, ( *localState, localForce ) )

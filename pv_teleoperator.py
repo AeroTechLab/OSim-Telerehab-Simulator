@@ -8,7 +8,9 @@ class PVTeleoperator:
   def SetSystem( self, impedance ):
     pass
   
-  def Process( self, localState, remoteState, localForce, remoteForce, timeDelay ):      
+  def Process( self, localState, localForce, remotePacket, timeDelay ):   
+    *remoteState, remoteForce = remotePacket
+    
     controForce = self.controller.Process( remoteState, localState )
     
-    return ( controForce, remoteState, localState )
+    return ( controForce, remoteState, ( *localState, localForce ) )
