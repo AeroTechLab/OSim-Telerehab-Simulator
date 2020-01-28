@@ -4,11 +4,7 @@ from system_linearizer import SystemLinearizer
 
 linearizer = SystemLinearizer()
 
-<<<<<<< HEAD
 data = numpy.loadtxt( 'samples-6.txt' )
-=======
-data = numpy.loadtxt( 'samples-3.txt' )
->>>>>>> bcd365c094c7d4711f37483de044863318f56c3c
 samplesNumber = data.shape[ 0 ]
 
 inputImpedance = []

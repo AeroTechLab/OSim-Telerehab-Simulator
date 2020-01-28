@@ -11,8 +11,6 @@ from lqg_prediction_teleoperator import LQGPredTeleoperator
 from lqg_feedback_teleoperator import LQGFFBTeleoperator
 from lqg_feedback_prediction_teleoperator import LQGFFBPredTeleoperator
 
-from mtdpc_stabilizer import MTDPCStabilizer
-
 from simple_plant import SimplePlant
 import opensim
 
@@ -20,7 +18,7 @@ from numpy import random, ravel, max, average
 from scipy.signal import butter, lfilter, freqz
 from matplotlib import pyplot
 
-SIM_TIME_STEPS_NUMBER = 5000
+SIM_TIME_STEPS_NUMBER = 2000
 
 ENVIRONMENT_IDS = [ "fm", "r", "pa", "ca", "c"  ]
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Power Assistive", "Coordination Assistive", "Competitive"  ]
@@ -33,15 +31,12 @@ SLAVE_INPUT_GAIN = 8.0
 SLAVE_DAMPING = 2.0
 OPERATOR_INERTIA = 1.0
 
-STABILIZER_FACTOR = 0.6
-
 NET_TIME_STEP = 0.02
 
 useInput = False
 useDelay = False
 useVariableDelay = False
 useDynamicImpedance = False
-useStabilizer = False
 environmentType = ENVIRONMENT_IDS.index( sys.argv[ 1 ] )
 controllerType = CONTROLLER_IDS.index( sys.argv[ 2 ] )
 for arg in sys.argv[ 3: ]:
@@ -49,8 +44,7 @@ for arg in sys.argv[ 3: ]:
   elif arg == '--delay': useDelay = True
   elif arg == '--jitter': useVariableDelay = True
   elif arg == '--dynamic': useDynamicImpedance = True
-  elif arg == '--stabilizer': useStabilizer = True
-print( environmentType, controllerType, useDelay, useVariableDelay, useDynamicImpedance, useStabilizer )
+print( environmentType, controllerType, useDelay, useVariableDelay, useDynamicImpedance )
 
 NET_DELAY_AVG = 0.2 if useDelay else 0.0
 NET_DELAY_VAR = 0.1 if ( useDelay and useVariableDelay ) else 0.0
@@ -65,10 +59,8 @@ elif controllerType == 6: Teleoperator = LQGFFBPredTeleoperator
 
 masterLinearizer = SystemLinearizer()
 slaveLinearizer = SystemLinearizer()
-masterTeleoperator = Teleoperator( ( OPERATOR_INERTIA, 0.0, 0.0 ), NET_TIME_STEP )
-slaveTeleoperator = Teleoperator( ( OPERATOR_INERTIA, 0.0, 0.0 ), NET_TIME_STEP )
-masterStabilizer = MTDPCStabilizer( STABILIZER_FACTOR, NET_TIME_STEP )
-slaveStabilizer = MTDPCStabilizer( STABILIZER_FACTOR, NET_TIME_STEP )
+masterTeleoperator = Teleoperator( ( OPERATOR_INERTIA, MASTER_DAMPING, 0.0 ), NET_TIME_STEP )
+slaveTeleoperator = Teleoperator( ( OPERATOR_INERTIA, SLAVE_DAMPING, 0.0 ), NET_TIME_STEP )
 
 masterToSlaveQueue = [ ( 0.0, 0.0, 0.0, 0.0 ) ]
 masterToSlaveTimesQueue = [ 0.0 ]
@@ -179,11 +171,11 @@ try:
   masterFeedbackInputs = [ 0.0 ]
   slaveFeedbackInputs = [ 0.0 ]
   masterInputInertias = [ 0.0 ]
-  slaveInertias = [ 0.0 ]
+  slaveOutputInertias = [ 0.0 ]
   masterInputDampings = [ 0.0 ]
-  slaveDampings = [ 0.0 ]
+  slaveOutputDampings = [ 0.0 ]
   masterInputStiffnesses = [ 0.0 ]
-  slaveStiffnesses = [ 0.0 ]
+  slaveOutputStiffnesses = [ 0.0 ]
   masterInputEnergy = [ 0.0 ]
   slaveFeedbackEnergy = [ 0.0 ]
   masterNetEnergy = [ 0.0 ]
@@ -199,10 +191,10 @@ try:
       while inputSilo.isAnyUserInput():
         key = inputSilo.takeKeyHitKeyOnly()
         if key == opensim.SimTKVisualizerInputListener.KeyEsc: isRunning = False
-        elif key == opensim.SimTKVisualizerInputListener.KeyUpArrow: slaveInput = SLAVE_INPUT_GAIN
-        elif key == opensim.SimTKVisualizerInputListener.KeyDownArrow: slaveInput = -SLAVE_INPUT_GAIN
-        elif key == opensim.SimTKVisualizerInputListener.KeyLeftArrow: masterInput = MASTER_INPUT_GAIN
-        elif key == opensim.SimTKVisualizerInputListener.KeyRightArrow: masterInput = -MASTER_INPUT_GAIN
+        elif key == opensim.SimTKVisualizerInputListener.KeyUpArrow: slaveInput = -SLAVE_INPUT_GAIN
+        elif key == opensim.SimTKVisualizerInputListener.KeyDownArrow: slaveInput = SLAVE_INPUT_GAIN
+        elif key == opensim.SimTKVisualizerInputListener.KeyLeftArrow: masterInput = -MASTER_INPUT_GAIN
+        elif key == opensim.SimTKVisualizerInputListener.KeyRightArrow: masterInput = MASTER_INPUT_GAIN
     masterInput = 0.2 * masterInput + 0.8 * masterInputs[ -1 ]
     slaveInput = 0.2 * slaveInput + 0.8 * slaveInputs[ -1 ]
     
@@ -223,16 +215,15 @@ try:
       if len( slaveToMasterQueue ) == 0: break
     # linearize master system
     masterLinearizer.AddSample( masterOutput[ 0 ], masterOutput[ 1 ], masterOutput[ 2 ], masterResultingInput, slaveFeedbackInputs[ -1 ] )
-    masterInputImpedance, masterOutputImpedance, masterPlantImpedance = masterLinearizer.IdentifySystem( ( OPERATOR_INERTIA, MASTER_DAMPING, 0.0 ) )
+    masterInputImpedance, masterOutputImpedance, masterPlantImpedance = masterLinearizer.IdentifySystem( ( OPERATOR_INERTIA, 0.0, 0.0 ) )
     if useDynamicImpedance: masterTeleoperator.SetSystem( masterPlantImpedance )
     # master control
     controlOutput = masterTeleoperator.Process( masterOutput, masterResultingInput, slaveDelayedPacket, slaveToMasterDelays[ -1 ] )
     slaveFeedbackInput, slaveCorrectedOutput, masterToSlavePacket = controlOutput
-    if useStabilizer: slaveFeedbackInput = masterStabilizer.Process( masterResultingInput, slaveFeedbackInput, MASTER_DAMPING, masterOutput[ 1 ] )
     masterFeedbackActuator.setOverrideActuation( systemState, slaveFeedbackInput )
     # send slave delayed setpoints
     masterToSlaveQueue.append( masterToSlavePacket )
-    masterToSlaveDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
+    masterToSlaveDelays.append( ( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 + masterToSlaveDelays[ -1 ] ) / 2 )
     masterToSlaveTimesQueue.append( simTime + masterToSlaveDelays[ -1 ] )
 
     # slave dynamics
@@ -253,16 +244,15 @@ try:
       if len( masterToSlaveQueue ) == 0: break
     # linearize slave system
     slaveLinearizer.AddSample( slaveOutput[ 0 ], slaveOutput[ 1 ], slaveOutput[ 2 ], slaveResultingInput, masterFeedbackInputs[ -1 ] )
-    slaveInputImpedance, slaveOutputImpedance, slavePlantImpedance = slaveLinearizer.IdentifySystem( ( OPERATOR_INERTIA, SLAVE_DAMPING, 0.0 ) )
+    slaveInputImpedance, slaveOutputImpedance, slavePlantImpedance = slaveLinearizer.IdentifySystem( ( OPERATOR_INERTIA, 0.0, 0.0 ) )
     if useDynamicImpedance: slaveTeleoperator.SetSystem( slavePlantImpedance )
     # slave control
     controlOutput = slaveTeleoperator.Process( slaveOutput, slaveResultingInput, masterDelayedPacket, masterToSlaveDelays[ -1 ] )
     masterFeedbackInput, masterCorrectedOutput, slaveToMasterPacket = controlOutput
-    if useStabilizer: masterFeedbackInput = slaveStabilizer.Process( slaveResultingInput, masterFeedbackInput, SLAVE_DAMPING, slaveOutput[ 1 ] )
     slaveFeedbackActuator.setOverrideActuation( systemState, masterFeedbackInput )
     # send master delayed setpoints
     slaveToMasterQueue.append( slaveToMasterPacket )
-    slaveToMasterDelays.append( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 )
+    slaveToMasterDelays.append( ( NET_DELAY_AVG + NET_DELAY_VAR * random.randint( 0, 1000 ) / 1000.0 + slaveToMasterDelays[ -1 ] ) / 2 )
     slaveToMasterTimesQueue.append( simTime + slaveToMasterDelays[ -1 ] )
     
     # reference update 
@@ -300,11 +290,11 @@ try:
     masterFeedbackInputs.append( masterFeedbackInput )
     slaveFeedbackInputs.append( slaveFeedbackInput )
     masterInputInertias.append( masterInputImpedance[ 0 ] )
-    slaveInertias.append( slaveOutputImpedance[ 0 ] )
+    slaveOutputInertias.append( slaveOutputImpedance[ 0 ] )
     masterInputDampings.append( masterInputImpedance[ 1 ] )
-    slaveDampings.append( slaveOutputImpedance[ 1 ] )
+    slaveOutputDampings.append( slaveOutputImpedance[ 1 ] )
     masterInputStiffnesses.append( masterInputImpedance[ 2 ] )
-    slaveStiffnesses.append( slaveOutputImpedance[ 2 ] )
+    slaveOutputStiffnesses.append( slaveOutputImpedance[ 2 ] )
     masterInputPower = masterInput * masterOutput[ 1 ]
     masterInputEnergy.append( masterInputEnergy[ -1 ] + masterInputPower * NET_TIME_STEP )
     slaveFeedbackPower = slaveFeedbackInput * masterOutput[ 1 ]
@@ -353,9 +343,9 @@ try:
   pyplot.subplot( 414, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.5, 7.5 ] )
   pyplot.ylabel( 'Impedance', fontsize=20 )
   pyplot.xlabel( 'Time [s]', fontsize=15 )
-  pyplot.plot( timeSteps, masterInputInertias, 'b--', timeSteps, slaveInertias, 'r--' )
-  pyplot.plot( timeSteps, masterInputDampings, 'b-.', timeSteps, slaveDampings, 'r-.' )
-  pyplot.plot( timeSteps, masterInputStiffnesses, 'b:', timeSteps, slaveStiffnesses, 'r:' )
+  pyplot.plot( timeSteps, masterInputInertias, 'b--', timeSteps, slaveOutputInertias, 'r--' )
+  pyplot.plot( timeSteps, masterInputDampings, 'b-.', timeSteps, slaveOutputDampings, 'r-.' )
+  pyplot.plot( timeSteps, masterInputStiffnesses, 'b:', timeSteps, slaveOutputStiffnesses, 'r:' )
   pyplot.legend( [ 'master-inertia', 'slave-inertia', 'master-damping', 'slave-damping', 'master-stiffness', 'slave-stiffness' ] )
   pyplot.show()
 except Exception as e:
