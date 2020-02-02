@@ -2,6 +2,7 @@ from lqg_controller import LQGController
 from mtdpc_stabilizer import MTDPCStabilizer
 
 class LQGTeleoperator:
+  remoteCorrectedForce = 0.0
     
   def __init__( self, impedance, timeStep ):
     self.controller = LQGController( impedance[ 0 ], 0.0, 0.0, timeStep )
@@ -15,8 +16,9 @@ class LQGTeleoperator:
   def Process( self, localState, localForce, remotePacket, timeDelay ):
     *remoteState, remoteForce = remotePacket
     
-    controlForce = self.controller.Process( remoteState, localState, localForce )
+    controlForce = self.controller.Process( remoteState, localState, self.remoteCorrectedForce + localForce )
     
-    controlForce = self.stabilizer.Process( localForce, controlForce, self.plantDamping, localState[ 1 ] )
+    feedbackForce = self.stabilizer.Process( controlForce, self.plantDamping, localState[ 1 ] )
+    self.remoteCorrectedForce = feedbackForce - controlForce
     
-    return ( controlForce, remoteState, ( *localState, localForce ) )
+    return ( feedbackForce, remoteState, ( *localState, localForce ) )

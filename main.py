@@ -18,7 +18,7 @@ from numpy import random, ravel, max, average
 from scipy.signal import butter, lfilter, freqz
 from matplotlib import pyplot
 
-SIM_TIME_STEPS_NUMBER = 2000
+SIM_TIME_STEPS_NUMBER = 5000
 
 ENVIRONMENT_IDS = [ "fm", "r", "pa", "ca", "c"  ]
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Power Assistive", "Coordination Assistive", "Competitive"  ]
@@ -312,7 +312,7 @@ try:
   inertiaErrorRMS = math.sqrt( inertiaErrorRMS )
   dampingErrorRMS = math.sqrt( dampingErrorRMS )
   stiffnessErrorRMS = math.sqrt( stiffnessErrorRMS )
-  print( "{:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format( positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS, masterNetEnergy[ -1 ] ) )
+  print( "{:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format( positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS, masterInputEnergy[ -1 ] - masterNetEnergy[ -1 ] ) )
   
   pyplot.subplot( 411, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.75, 0.75 ] )
   #pyplot.title( 'Teleoperation w/ Interactive Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error=({:.3f},{:.3f},{:.3f}) )\n'.format( 

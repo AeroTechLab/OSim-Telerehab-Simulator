@@ -2,6 +2,7 @@ from lqg_prediction_controller import LQGPredController
 from mtdpc_stabilizer import MTDPCStabilizer
 
 class LQGFFBPredTeleoperator:
+  remoteCorrectedForce = 0.0
  
   def __init__( self, impedance, timeStep ):
     self.predController = LQGPredController( impedance[ 0 ], 0.0, 0.0, timeStep )
@@ -15,9 +16,10 @@ class LQGFFBPredTeleoperator:
   def Process( self, localState, localForce, remotePacket, timeDelay ):
     *remoteState, remoteForce = remotePacket
     
-    remoteCorrectedState, remoteCorrectedForce = self.predController.Predict( remoteState, remoteForce, timeDelay )
-    controlForce = self.predController.Process( remoteCorrectedState, localState, remoteCorrectedForce + localForce )    
+    remotePredictedState, remotePredictedForce = self.predController.Predict( remoteState, remoteForce, timeDelay )
+    controlForce = self.predController.Process( remotePredictedState, localState, self.remoteCorrectedForce + localForce )    
     
-    feedbackForce = self.stabilizer.Process( localForce, controlForce + remoteCorrectedForce, self.plantDamping, localState[ 1 ] )
+    feedbackForce = self.stabilizer.Process( controlForce + remotePredictedForce, self.plantDamping, localState[ 1 ] )
+    self.remoteCorrectedForce = feedbackForce - controlForce
     
-    return ( feedbackForce, remoteCorrectedState, ( *localState, localForce ) )
+    return ( feedbackForce, remotePredictedState, ( *localState, localForce ) )
