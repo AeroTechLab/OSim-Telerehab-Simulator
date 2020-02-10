@@ -16,9 +16,10 @@ import opensim
 
 from numpy import random, ravel, max, average
 from scipy.signal import butter, lfilter, freqz
-from matplotlib import pyplot
 
-SIM_TIME_STEPS_NUMBER = 5000
+import data_plotter
+
+SIM_TIME_STEPS_NUMBER = 2000
 
 ENVIRONMENT_IDS = [ "fm", "r", "pa", "ca", "c"  ]
 ENVIRONMENT_NAMES = [ "Free Motion", "Resistive", "Power Assistive", "Coordination Assistive", "Competitive"  ]
@@ -162,6 +163,8 @@ try:
   timeSteps = [ 0.0 ]
   masterPositions = [ 0.0 ]
   slavePositions = [ 0.0 ]
+  masterVelocities = [ 0.0 ]
+  slaveVelocities = [ 0.0 ]
   masterDelayedPositions = [ 0.0 ]
   slaveDelayedPositions = [ 0.0 ]
   masterSetpointPositions = [ 0.0 ]
@@ -270,23 +273,19 @@ try:
     # system update
     systemState = manager.integrate( simTime )
     
-    # perfomance calculation
-    positionErrorRMS += ( masterOutput[ 0 ] - slaveOutput[ 0 ] )**2 / SIM_TIME_STEPS_NUMBER
-    inertiaErrorRMS += ( masterInputImpedance[ 0 ] - slaveOutputImpedance[ 0 ] )**2 / SIM_TIME_STEPS_NUMBER
-    dampingErrorRMS += ( masterInputImpedance[ 1 ] - slaveOutputImpedance[ 1 ] )**2 / SIM_TIME_STEPS_NUMBER
-    stiffnessErrorRMS += ( masterInputImpedance[ 2 ] - slaveOutputImpedance[ 2 ] )**2 / SIM_TIME_STEPS_NUMBER
-    
     # data logging
     timeSteps.append( simTime )
     referencePositions.append( referenceOutput[ 0 ] )
     masterPositions.append( masterOutput[ 0 ] )
     slavePositions.append( slaveOutput[ 0 ] )
+    masterVelocities.append( masterOutput[ 1 ] )
+    slaveVelocities.append( slaveOutput[ 1 ] )
     masterDelayedPositions.append( masterDelayedPacket[ 0 ] )
     slaveDelayedPositions.append( slaveDelayedPacket[ 0 ] )
     masterSetpointPositions.append( slaveCorrectedOutput[ 0 ] )
     slaveSetpointPositions.append( masterCorrectedOutput[ 0 ] )
-    masterInputs.append( masterInput )
-    slaveInputs.append( slaveInput )
+    masterInputs.append( masterResultingInput )
+    slaveInputs.append( slaveResultingInput )
     masterFeedbackInputs.append( masterFeedbackInput )
     slaveFeedbackInputs.append( slaveFeedbackInput )
     masterInputInertias.append( masterInputImpedance[ 0 ] )
@@ -307,46 +306,12 @@ try:
     referenceEnergy.append( referenceEnergy[ -1 ] + referencePower * NET_TIME_STEP )
     
   if useInput: model.setUseVisualizer( False )
-  
-  positionErrorRMS = math.sqrt( positionErrorRMS )
-  inertiaErrorRMS = math.sqrt( inertiaErrorRMS )
-  dampingErrorRMS = math.sqrt( dampingErrorRMS )
-  stiffnessErrorRMS = math.sqrt( stiffnessErrorRMS )
-  print( "{:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format( positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS, masterInputEnergy[ -1 ] - masterNetEnergy[ -1 ] ) )
-  
-  pyplot.subplot( 411, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.75, 0.75 ] )
-  #pyplot.title( 'Teleoperation w/ Interactive Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error=({:.3f},{:.3f},{:.3f}) )\n'.format( 
-  #              NET_DELAY_AVG, NET_DELAY_VAR, CONTROLLER_NAMES[ controllerType ], positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS ), fontsize=15 )
-  pyplot.ylabel( 'Position [m]', fontsize=20 )
-  pyplot.tick_params( axis='x', labelsize=0 )
-  pyplot.plot( timeSteps, referencePositions, 'k:' )
-  #pyplot.plot( timeSteps, masterDelayedPositions, 'b:', timeSteps, slaveDelayedPositions, 'r:' )
-  #pyplot.plot( timeSteps, masterSetpointPositions, 'b--', timeSteps, slaveSetpointPositions, 'r--' )
-  pyplot.plot( timeSteps, masterPositions, 'b-', timeSteps, slavePositions, 'r-' )
-  pyplot.legend( [ 'reference', 'master', 'slave' ] )
-  #pyplot.legend( [ 'reference', 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
-  #pyplot.legend( [ 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
-  
-  pyplot.subplot( 412, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -8.1, 8.1 ] )
-  pyplot.ylabel( 'Force [N]', fontsize=20 )
-  #pyplot.tick_params( axis='x', labelsize=0 )
-  pyplot.plot( timeSteps, masterInputs, 'g-', timeSteps, slaveInputs, 'm-' )
-  pyplot.plot( timeSteps, masterFeedbackInputs, 'b-', timeSteps, slaveFeedbackInputs, 'r-' )
-  pyplot.legend( [ 'master-input', 'slave-input', 'master-feedback', 'slave-feedback' ] )
-  pyplot.subplot( 413, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -5.0, 5.0 ] )
-  pyplot.ylabel( 'Energy [J]', fontsize=20 )
-  #pyplot.xlabel( 'Time [s]', fontsize=10 )
-  pyplot.plot( timeSteps, masterInputEnergy, 'b-', timeSteps, slaveFeedbackEnergy, 'r-', timeSteps, masterNetEnergy, 'g-' )
-  #pyplot.plot( timeSteps, referenceEnergy, 'k:' )
-  pyplot.legend( [ 'master-input', 'slave-feeback', 'net-work' ] )
-  
-  pyplot.subplot( 414, xlim=[ 0.0, SIM_TIME_STEPS_NUMBER * NET_TIME_STEP ], ylim=[ -0.5, 7.5 ] )
-  pyplot.ylabel( 'Impedance', fontsize=20 )
-  pyplot.xlabel( 'Time [s]', fontsize=15 )
-  pyplot.plot( timeSteps, masterInputInertias, 'b--', timeSteps, slaveOutputInertias, 'r--' )
-  pyplot.plot( timeSteps, masterInputDampings, 'b-.', timeSteps, slaveOutputDampings, 'r-.' )
-  pyplot.plot( timeSteps, masterInputStiffnesses, 'b:', timeSteps, slaveOutputStiffnesses, 'r:' )
-  pyplot.legend( [ 'master-inertia', 'slave-inertia', 'master-damping', 'slave-damping', 'master-stiffness', 'slave-stiffness' ] )
-  pyplot.show()
+
 except Exception as e:
   print( e )
+
+data_plotter.plotData( timeSteps, referencePositions, masterPositions, slavePositions, masterVelocities, slaveVelocities, 
+                       masterDelayedPositions, slaveDelayedPositions, masterSetpointPositions, slaveSetpointPositions, 
+                       masterInputs, slaveInputs, masterFeedbackInputs, slaveFeedbackInputs, masterInputInertias, slaveOutputInertias, 
+                       masterInputDampings, slaveOutputDampings, masterInputStiffnesses, slaveOutputStiffnesses, masterInputEnergy, 
+                       slaveFeedbackEnergy, masterNetEnergy, masterDissipatedEnergy, referenceEnergy )
