@@ -13,5 +13,6 @@ class MTDPCStabilizer:
     extraDampingForce = 0.0
     if abs( velocity ) > 0.001 and self.extraEnergy > 0.0:
       extraDampingForce = self.extraEnergy / ( velocity * self.dt )
+      if abs( extraDampingForce ) > abs( feedbackForce ): extraDampingForce = feedbackForce
     self.extraEnergy -= extraDampingForce * velocity * self.dt
     return feedbackForce - extraDampingForce

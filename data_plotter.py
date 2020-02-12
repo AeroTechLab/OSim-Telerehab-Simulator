@@ -26,7 +26,7 @@ def plotData( timeSteps, referencePositions, masterPositions, slavePositions, ma
   dampingErrorRMS = math.sqrt( dampingErrorRMS )
   stiffnessErrorRMS = math.sqrt( stiffnessErrorRMS )
   
-  print( "{:.3f} {:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format( positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS, masterInputEnergy[ -1 ] - masterNetEnergy[ -1 ], velocityErrorRMS + forceErrorRMS ) )
+  print( "{:.3f} {:.3f} {:.3f} {:.3f} {:.3f} {:.3f}".format( positionErrorRMS, inertiaErrorRMS, dampingErrorRMS, stiffnessErrorRMS, masterInputEnergy[ -1 ] - masterDissipatedEnergy[ -1 ] - masterNetEnergy[ -1 ], velocityErrorRMS + forceErrorRMS ) )
   
   pyplot.subplot( 411, xlim=[ 0.0, timeSteps[ -1 ] ], ylim=[ -0.75, 0.75 ] )
   #pyplot.title( 'Teleoperation w/ Interactive Environment (delay={}±{}[s])\n{} Controller ( position RMS error={:.3f}, impedance RMS error=({:.3f},{:.3f},{:.3f}) )\n'.format( 
@@ -50,9 +50,9 @@ def plotData( timeSteps, referencePositions, masterPositions, slavePositions, ma
   pyplot.subplot( 413, xlim=[ 0.0, timeSteps[ -1 ] ], ylim=[ -5.0, 5.0 ] )
   pyplot.ylabel( 'Energy [J]', fontsize=20 )
   #pyplot.xlabel( 'Time [s]', fontsize=10 )
-  pyplot.plot( timeSteps, masterInputEnergy, 'b-', timeSteps, slaveFeedbackEnergy, 'r-', timeSteps, masterNetEnergy, 'g-' )
+  pyplot.plot( timeSteps, masterInputEnergy, 'b-', timeSteps, slaveFeedbackEnergy, 'r-', timeSteps, masterDissipatedEnergy, 'm-', timeSteps, masterNetEnergy, 'g-' )
   #pyplot.plot( timeSteps, referenceEnergy, 'k:' )
-  pyplot.legend( [ 'master-input', 'slave-feeback', 'net-work' ] )
+  pyplot.legend( [ 'master-input', 'slave-feeback', 'master-dissipated', 'master-resulting' ] )
   
   pyplot.subplot( 414, xlim=[ 0.0, timeSteps[ -1 ] ], ylim=[ -0.5, 7.5 ] )
   pyplot.ylabel( 'Impedance', fontsize=20 )
