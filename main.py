@@ -171,6 +171,8 @@ try:
   slaveSetpointPositions = [ 0.0 ]
   masterInputs = [ 0.0 ]
   slaveInputs = [ 0.0 ]
+  masterResultingInputs = [ 0.0 ]
+  slaveResultingInputs = [ 0.0 ]
   masterFeedbackInputs = [ 0.0 ]
   slaveFeedbackInputs = [ 0.0 ]
   masterInputInertias = [ 0.0 ]
@@ -284,8 +286,10 @@ try:
     slaveDelayedPositions.append( slaveDelayedPacket[ 0 ] )
     masterSetpointPositions.append( slaveCorrectedOutput[ 0 ] )
     slaveSetpointPositions.append( masterCorrectedOutput[ 0 ] )
-    masterInputs.append( masterResultingInput )
-    slaveInputs.append( slaveResultingInput )
+    masterInputs.append( masterInput )
+    slaveInputs.append( slaveInput )
+    masterResultingInputs.append( masterResultingInput )
+    slaveResultingInputs.append( slaveResultingInput )
     masterFeedbackInputs.append( masterFeedbackInput )
     slaveFeedbackInputs.append( slaveFeedbackInput )
     masterInputInertias.append( masterInputImpedance[ 0 ] )
