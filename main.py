@@ -316,6 +316,6 @@ except Exception as e:
 
 data_plotter.plotData( timeSteps, referencePositions, masterPositions, slavePositions, masterVelocities, slaveVelocities, 
                        masterDelayedPositions, slaveDelayedPositions, masterSetpointPositions, slaveSetpointPositions, 
-                       masterInputs, slaveInputs, masterFeedbackInputs, slaveFeedbackInputs, masterInputInertias, slaveOutputInertias, 
+                       masterResultingInputs, slaveResultingInputs, masterFeedbackInputs, slaveFeedbackInputs, masterInputInertias, slaveOutputInertias, 
                        masterInputDampings, slaveOutputDampings, masterInputStiffnesses, slaveOutputStiffnesses, masterInputEnergy, 
                        slaveFeedbackEnergy, masterNetEnergy, masterDissipatedEnergy, referenceEnergy )
