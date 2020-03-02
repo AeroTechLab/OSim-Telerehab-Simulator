@@ -41,9 +41,9 @@ def plotData( timeSteps, referencePositions, masterPositions, slavePositions, ma
   #pyplot.legend( [ 'reference', 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
   #pyplot.legend( [ 'master-delayed', 'slave-delayed', 'master-setpoint', 'slave-setpoint', 'master', 'slave' ] )
   
-  pyplot.subplot( 412, xlim=[ 0.0, timeSteps[ -1 ] ], ylim=[ -8.1, 8.1 ] )
+  pyplot.subplot( 412, xlim=[ 0.0, timeSteps[ -1 ] ], ylim=[ -10, 10 ] )
   pyplot.ylabel( 'Force [N]', fontsize=15 )
-  pyplot.tick_params( axis='x', labelsize=0 )
+  #pyplot.tick_params( axis='x', labelsize=0 )
   pyplot.plot( timeSteps, masterInputs, 'g-', timeSteps, slaveInputs, 'm-' )
   pyplot.plot( timeSteps, masterFeedbackInputs, 'b-', timeSteps, slaveFeedbackInputs, 'r-' )
   pyplot.legend( [ 'master-input', 'slave-input', 'master-feedback', 'slave-feedback' ] )
